@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DevicePropertiesDialog</class>
+ <widget class="QDialog" name="DevicePropertiesDialog">
+  <property name="windowTitle">
+   <string>Device Properties</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <widget class="QWidget" name="tabGeneral">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayoutGeneral">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelName">
+         <property name="text">
+          <string>Name:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLineEdit" name="nameEdit"/>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelManufacturer">
+         <property name="text">
+          <string>Manufacturer:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="manufacturerCombo"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabMedia">
+      <attribute name="title">
+       <string>Media</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayoutMedia">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelMediaType">
+         <property name="text">
+          <string>Media type:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="mediaTypeCombo">
+         <item>
+          <property name="text">
+           <string>Serial</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Network (TCP)</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelSerialPort">
+         <property name="text">
+          <string>Serial port:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <layout class="QHBoxLayout" name="serialPortLayout">
+         <item>
+          <widget class="QComboBox" name="serialPortCombo">
+           <property name="editable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="refreshPortsButton">
+           <property name="text">
+            <string>Refresh</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelBaudRate">
+         <property name="text">
+          <string>Baud rate:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QComboBox" name="baudRateCombo">
+         <item><property name="text"><string>300</string></property></item>
+         <item><property name="text"><string>600</string></property></item>
+         <item><property name="text"><string>1200</string></property></item>
+         <item><property name="text"><string>2400</string></property></item>
+         <item><property name="text"><string>4800</string></property></item>
+         <item><property name="text"><string>9600</string></property></item>
+         <item><property name="text"><string>19200</string></property></item>
+         <item><property name="text"><string>38400</string></property></item>
+         <item><property name="text"><string>57600</string></property></item>
+         <item><property name="text"><string>115200</string></property></item>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="labelHost">
+         <property name="text">
+          <string>Host:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLineEdit" name="hostEdit"/>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="labelPort">
+         <property name="text">
+          <string>Port:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="portSpin">
+         <property name="maximum">
+          <number>65535</number>
+         </property>
+         <property name="value">
+          <number>4059</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="labelWaitTime">
+         <property name="text">
+          <string>Wait time (ms):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QSpinBox" name="waitTimeSpin">
+         <property name="minimum">
+          <number>100</number>
+         </property>
+         <property name="maximum">
+          <number>60000</number>
+         </property>
+         <property name="value">
+          <number>5000</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabDlms">
+      <attribute name="title">
+       <string>DLMS</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayoutDlms">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelReferencing">
+         <property name="text">
+          <string>Referencing:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="referencingCombo">
+         <item>
+          <property name="text">
+           <string>Logical Name</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Short Name</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelInterface">
+         <property name="text">
+          <string>Interface:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="interfaceCombo">
+         <item><property name="text"><string>HDLC</string></property></item>
+         <item><property name="text"><string>Wrapper</string></property></item>
+         <item><property name="text"><string>PLC</string></property></item>
+         <item><property name="text"><string>PLC HDLC</string></property></item>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelMacSource">
+         <property name="text">
+          <string>MAC source:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QSpinBox" name="macSourceSpin">
+         <property name="maximum">
+          <number>65535</number>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="labelMacDestination">
+         <property name="text">
+          <string>MAC destination:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="macDestinationSpin">
+         <property name="maximum">
+          <number>65535</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="labelClientAddress">
+         <property name="text">
+          <string>Client address:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="clientAddressSpin">
+         <property name="maximum">
+          <number>16383</number>
+         </property>
+         <property name="value">
+          <number>16</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="labelServerAddress">
+         <property name="text">
+          <string>Server address:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QSpinBox" name="serverAddressSpin">
+         <property name="maximum">
+          <number>16383</number>
+         </property>
+         <property name="value">
+          <number>1</number>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="labelAuth">
+         <property name="text">
+          <string>Authentication:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QComboBox" name="authCombo">
+         <item><property name="text"><string>None</string></property></item>
+         <item><property name="text"><string>Low</string></property></item>
+         <item><property name="text"><string>High</string></property></item>
+         <item><property name="text"><string>High MD5</string></property></item>
+         <item><property name="text"><string>High SHA1</string></property></item>
+         <item><property name="text"><string>High SHA256</string></property></item>
+         <item><property name="text"><string>High ECDSA</string></property></item>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="labelPassword">
+         <property name="text">
+          <string>Password:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QLineEdit" name="passwordEdit">
+         <property name="echoMode">
+          <enum>QLineEdit::Password</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabConformance">
+      <attribute name="title">
+       <string>Conformance</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayoutConformance">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelProposedConformance">
+         <property name="text">
+          <string>Proposed:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLineEdit" name="proposedConformanceEdit">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelNegotiatedConformance">
+         <property name="text">
+          <string>Negotiated:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLineEdit" name="negotiatedConformanceEdit">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>DevicePropertiesDialog</receiver>
+   <slot>accept()</slot>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>DevicePropertiesDialog</receiver>
+   <slot>reject()</slot>
+  </connection>
+ </connections>
+</ui>

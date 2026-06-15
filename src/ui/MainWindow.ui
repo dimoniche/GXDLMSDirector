@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>GXDLMSDirector</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QSplitter" name="mainSplitter">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <widget class="QTreeView" name="objectTree">
+       <property name="headerHidden">
+        <bool>true</bool>
+       </property>
+      </widget>
+       <widget class="QSplitter" name="rightSplitter">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <widget class="QWidget" name="objectPanel">
+        <layout class="QVBoxLayout" name="objectPanelLayout">
+         <item>
+          <widget class="QGroupBox" name="clockEditorGroup">
+           <property name="title">
+            <string>Clock editor</string>
+           </property>
+           <layout class="QHBoxLayout" name="clockEditorLayout">
+            <item>
+             <widget class="QDateTimeEdit" name="clockDateTimeEdit">
+              <property name="calendarPopup">
+               <bool>true</bool>
+              </property>
+              <property name="displayFormat">
+               <string>yyyy-MM-dd HH:mm:ss</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="clockWriteButton">
+              <property name="text">
+               <string>Write time (attr 2)</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QTabWidget" name="objectEditorTabs">
+           <property name="currentIndex">
+            <number>0</number>
+           </property>
+           <widget class="QWidget" name="attributesTab">
+            <attribute name="title">
+             <string>Attributes</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="attributesLayout">
+             <item>
+              <widget class="QTableWidget" name="propertyTable">
+               <column>
+                <property name="text">
+                 <string>Attribute</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Type</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Value</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="methodsTab">
+            <attribute name="title">
+             <string>Methods</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="methodsLayout">
+             <item>
+              <widget class="QTableWidget" name="methodsTable">
+               <column>
+                <property name="text">
+                 <string>Method</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Access</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="methodInvokeLayout">
+               <item>
+                <widget class="QLabel" name="methodParamLabel">
+                 <property name="text">
+                  <string>Parameter</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="methodParamEdit"/>
+               </item>
+               <item>
+                <widget class="QPushButton" name="invokeMethodButton">
+                 <property name="text">
+                  <string>Invoke</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QPlainTextEdit" name="traceLog">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+        <property name="placeholderText">
+         <string>DLMS trace log...</string>
+        </property>
+       </widget>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1200</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionNewDevice"/>
+    <addaction name="actionOpen"/>
+    <addaction name="actionSave"/>
+    <addaction name="actionSaveAs"/>
+    <addaction name="actionDeviceProperties"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuObjects">
+    <property name="title">
+     <string>Objects</string>
+    </property>
+    <addaction name="actionAddObject"/>
+    <addaction name="actionDeleteObject"/>
+    <addaction name="actionEditOctetString"/>
+   </widget>
+   <widget class="QMenu" name="menuConnection">
+    <property name="title">
+     <string>Connection</string>
+    </property>
+    <addaction name="actionConnect"/>
+    <addaction name="actionDisconnect"/>
+    <addaction name="actionReadAll"/>
+    <addaction name="actionReadObject"/>
+    <addaction name="actionWriteObject"/>
+    <addaction name="actionInvokeMethod"/>
+    <addaction name="actionReadProfileGeneric"/>
+   </widget>
+   <widget class="QMenu" name="menuManufacturers">
+    <property name="title">
+     <string>Manufacturers</string>
+    </property>
+    <addaction name="actionEditManufacturers"/>
+   </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title">
+     <string>Tools</string>
+    </property>
+    <addaction name="actionMacroEditor"/>
+    <addaction name="actionDlmsTranslator"/>
+    <addaction name="actionHdlcAddressScanner"/>
+    <addaction name="actionPlcDiscover"/>
+   </widget>
+   <widget class="QMenu" name="menuConformance">
+    <property name="title">
+     <string>Conformance</string>
+    </property>
+    <addaction name="actionConformanceTests"/>
+   </widget>
+   <widget class="QMenu" name="menuDataConcentrators">
+    <property name="title">
+     <string>Data Concentrators</string>
+    </property>
+    <addaction name="actionDataConcentrators"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuObjects"/>
+   <addaction name="menuConnection"/>
+   <addaction name="menuManufacturers"/>
+   <addaction name="menuTools"/>
+   <addaction name="menuConformance"/>
+   <addaction name="menuDataConcentrators"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionConnect"/>
+   <addaction name="actionDisconnect"/>
+   <addaction name="actionReadAll"/>
+   <addaction name="actionReadObject"/>
+   <addaction name="actionWriteObject"/>
+   <addaction name="actionDeviceProperties"/>
+  </widget>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="text">
+    <string>Save</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionSaveAs">
+   <property name="text">
+    <string>Save As...</string>
+   </property>
+  </action>
+  <action name="actionReadObject">
+   <property name="text">
+    <string>Read Object</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionWriteObject">
+   <property name="text">
+    <string>Write Object</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionInvokeMethod">
+   <property name="text">
+    <string>Invoke Method</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionAddObject">
+   <property name="text">
+    <string>Add Object...</string>
+   </property>
+  </action>
+  <action name="actionDeleteObject">
+   <property name="text">
+    <string>Delete Object</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionEditOctetString">
+   <property name="text">
+    <string>Edit Octet String...</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionEditManufacturers">
+   <property name="text">
+    <string>Edit Manufacturer Settings...</string>
+   </property>
+  </action>
+  <action name="actionNewDevice">
+   <property name="text">
+    <string>New Device</string>
+   </property>
+  </action>
+  <action name="actionDeviceProperties">
+   <property name="text">
+    <string>Device Properties...</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionConnect">
+   <property name="text">
+    <string>Connect</string>
+   </property>
+  </action>
+  <action name="actionDisconnect">
+   <property name="text">
+    <string>Disconnect</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionReadAll">
+   <property name="text">
+    <string>Read All</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionReadProfileGeneric">
+   <property name="text">
+    <string>Read Profile Generic...</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionDlmsTranslator">
+   <property name="text">
+    <string>DLMS Translator...</string>
+   </property>
+  </action>
+  <action name="actionHdlcAddressScanner">
+   <property name="text">
+    <string>HDLC Address Scanner...</string>
+   </property>
+  </action>
+  <action name="actionMacroEditor">
+   <property name="text">
+    <string>Macro Editor...</string>
+   </property>
+  </action>
+  <action name="actionPlcDiscover">
+   <property name="text">
+    <string>PLC Discover...</string>
+   </property>
+  </action>
+  <action name="actionConformanceTests">
+   <property name="text">
+    <string>Run External Tests...</string>
+   </property>
+  </action>
+  <action name="actionDataConcentrators">
+   <property name="text">
+    <string>No plugins available</string>
+   </property>
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

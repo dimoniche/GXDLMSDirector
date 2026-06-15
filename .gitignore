@@ -1,0 +1,9 @@
+build/
+cmake-build-*/
+_upstream/
+.DS_Store
+*.user
+*.autosave
+*.gxc~
+trace.txt
+LogFile.txt

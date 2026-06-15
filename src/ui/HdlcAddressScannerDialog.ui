@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>HdlcAddressScannerDialog</class>
+ <widget class="QDialog" name="HdlcAddressScannerDialog">
+  <property name="windowTitle">
+   <string>HDLC Address Scanner</string>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>750</width>
+    <height>550</height>
+   </size>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="connectionGroup">
+     <property name="title">
+      <string>Connection</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="mediaLabel">
+        <property name="text">
+         <string>Media</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="mediaCombo">
+        <item>
+         <property name="text">
+          <string>Serial</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Network</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="serialPortLabel">
+        <property name="text">
+         <string>Serial port</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="serialLayout">
+        <item>
+         <widget class="QComboBox" name="serialPortCombo"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="refreshPortsButton">
+          <property name="text">
+           <string>Refresh</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="baudRateLabel">
+        <property name="text">
+         <string>Baud rate</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="baudRateCombo">
+        <item><property name="text"><string>300</string></property></item>
+        <item><property name="text"><string>9600</string></property></item>
+        <item><property name="text"><string>19200</string></property></item>
+        <item><property name="text"><string>38400</string></property></item>
+        <item><property name="text"><string>57600</string></property></item>
+        <item><property name="text"><string>115200</string></property></item>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="hostLabel">
+        <property name="text">
+         <string>Host</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="hostEdit">
+        <property name="text">
+         <string>localhost</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="portLabel">
+        <property name="text">
+         <string>Port</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QSpinBox" name="portSpin">
+        <property name="maximum">
+         <number>65535</number>
+        </property>
+        <property name="value">
+         <number>4059</number>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="serverAddressesLabel">
+        <property name="text">
+         <string>Server addresses</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLineEdit" name="serverAddressesEdit">
+        <property name="text">
+         <string>1,17,18,19,20,21,22,23,24,25</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="clientAddressesLabel">
+        <property name="text">
+         <string>Client addresses</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLineEdit" name="clientAddressesEdit">
+        <property name="text">
+         <string>16</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="waitTimeLabel">
+        <property name="text">
+         <string>Wait time (ms)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QSpinBox" name="waitTimeSpin">
+        <property name="maximum">
+         <number>60000</number>
+        </property>
+        <property name="value">
+         <number>2000</number>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="tryAarqLabel">
+        <property name="text">
+         <string>Try AARQ</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="QCheckBox" name="tryAarqCheck">
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progressBar"/>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="logEdit">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="resultTable">
+     <column>
+      <property name="text">
+       <string>Client</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Server</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Logical</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Physical</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Details</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonLayout">
+     <item>
+      <widget class="QPushButton" name="scanButton">
+       <property name="text">
+        <string>Scan</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="stopButton">
+       <property name="text">
+        <string>Stop</string>
+       </property>
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeButton">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
