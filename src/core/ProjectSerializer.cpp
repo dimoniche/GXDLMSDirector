@@ -1,13 +1,25 @@
 #include "ProjectSerializer.h"
 #include "GXDLMSDevice.h"
+#include "GXDLMSProject.h"
 
 #include <GXDLMSObjectCollection.h>
 
 #include <QDomDocument>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 namespace {
+
+QString sanitizeDeviceKey(const QString &name, int index)
+{
+    QString key = name;
+    key.replace(QRegularExpression(QStringLiteral("[^a-zA-Z0-9_-]")), QStringLiteral("_"));
+    if (key.isEmpty())
+        key = QStringLiteral("device%1").arg(index);
+    return key;
+}
+
 void writeDeviceElement(QDomDocument &doc, QDomElement &deviceElement, GXDLMSDevice *device)
 {
     deviceElement.setAttribute(QStringLiteral("name"), device->name());
@@ -87,6 +99,50 @@ bool readDeviceElement(const QDomElement &deviceElement, GXDLMSDevice *device, Q
 
     return true;
 }
+
+bool loadDeviceObjects(const QString &projectPath, GXDLMSDevice *device, int deviceIndex, int deviceCount,
+                       QString *error)
+{
+    device->objects().Free();
+
+    QString objectsPath = ProjectSerializer::objectsFilePath(projectPath, device, deviceIndex);
+    if (!QFile::exists(objectsPath) && deviceCount == 1)
+        objectsPath = ProjectSerializer::objectsFilePath(projectPath);
+
+    if (!QFile::exists(objectsPath))
+        return true;
+
+    const int ret = device->objects().Load(objectsPath.toStdString().c_str());
+    if (ret != 0) {
+        if (error)
+            *error = QStringLiteral("Failed to load objects for %1 (%2)").arg(device->name()).arg(ret);
+        return false;
+    }
+    return true;
+}
+
+bool saveDeviceObjects(const QString &projectPath, GXDLMSDevice *device, int deviceIndex, int deviceCount,
+                       QString *error)
+{
+    if (device->objects().empty()) {
+        QFile::remove(ProjectSerializer::objectsFilePath(projectPath, device, deviceIndex));
+        if (deviceCount == 1)
+            QFile::remove(ProjectSerializer::objectsFilePath(projectPath));
+        return true;
+    }
+
+    const QString objectsPath = deviceCount == 1
+                                    ? ProjectSerializer::objectsFilePath(projectPath)
+                                    : ProjectSerializer::objectsFilePath(projectPath, device, deviceIndex);
+    const int ret = device->objects().Save(objectsPath.toStdString().c_str());
+    if (ret != 0) {
+        if (error)
+            *error = QStringLiteral("Failed to save objects for %1 (%2)").arg(device->name()).arg(ret);
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 QString ProjectSerializer::objectsFilePath(const QString &projectPath)
@@ -95,22 +151,33 @@ QString ProjectSerializer::objectsFilePath(const QString &projectPath)
            + QFileInfo(projectPath).completeBaseName() + QStringLiteral(".objects.xml");
 }
 
-bool ProjectSerializer::save(const QString &projectPath, GXDLMSDevice *device, QString *error)
+QString ProjectSerializer::objectsFilePath(const QString &projectPath, const GXDLMSDevice *device, int deviceIndex)
 {
-    if (!device) {
+    const QString key = sanitizeDeviceKey(device ? device->name() : QString(), deviceIndex);
+    return QFileInfo(projectPath).absolutePath() + QLatin1Char('/')
+           + QFileInfo(projectPath).completeBaseName() + QLatin1Char('.') + key
+           + QStringLiteral(".objects.xml");
+}
+
+bool ProjectSerializer::save(const QString &projectPath, GXDLMSProject *project, QString *error)
+{
+    if (!project || project->deviceCount() == 0) {
         if (error)
-            *error = QStringLiteral("No device");
+            *error = QStringLiteral("No devices in project");
         return false;
     }
 
     QDomDocument doc;
     QDomElement root = doc.createElement(QStringLiteral("GXDLMSDirectorProject"));
-    root.setAttribute(QStringLiteral("version"), QStringLiteral("2"));
+    root.setAttribute(QStringLiteral("version"), project->deviceCount() > 1 ? QStringLiteral("3") : QStringLiteral("2"));
     doc.appendChild(root);
 
-    QDomElement deviceElement = doc.createElement(QStringLiteral("Device"));
-    writeDeviceElement(doc, deviceElement, device);
-    root.appendChild(deviceElement);
+    for (int i = 0; i < project->deviceCount(); ++i) {
+        GXDLMSDevice *device = project->deviceAt(i);
+        QDomElement deviceElement = doc.createElement(QStringLiteral("Device"));
+        writeDeviceElement(doc, deviceElement, device);
+        root.appendChild(deviceElement);
+    }
 
     QFile file(projectPath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -121,25 +188,19 @@ bool ProjectSerializer::save(const QString &projectPath, GXDLMSDevice *device, Q
     file.write(doc.toByteArray(2));
     file.close();
 
-    if (!device->objects().empty()) {
-        const int ret = device->objects().Save(objectsFilePath(projectPath).toStdString().c_str());
-        if (ret != 0) {
-            if (error)
-                *error = QStringLiteral("Failed to save objects (%1)").arg(ret);
+    for (int i = 0; i < project->deviceCount(); ++i) {
+        if (!saveDeviceObjects(projectPath, project->deviceAt(i), i, project->deviceCount(), error))
             return false;
-        }
-    } else {
-        QFile::remove(objectsFilePath(projectPath));
     }
 
     return true;
 }
 
-bool ProjectSerializer::load(const QString &projectPath, GXDLMSDevice *device, QString *error)
+bool ProjectSerializer::load(const QString &projectPath, GXDLMSProject *project, QString *error)
 {
-    if (!device) {
+    if (!project) {
         if (error)
-            *error = QStringLiteral("No device");
+            *error = QStringLiteral("No project");
         return false;
     }
 
@@ -165,25 +226,57 @@ bool ProjectSerializer::load(const QString &projectPath, GXDLMSDevice *device, Q
         return false;
     }
 
-    QDomElement deviceElement = root.firstChildElement(QStringLiteral("Device"));
-    if (deviceElement.isNull())
-        deviceElement = root.firstChildElement();
-
-    if (!readDeviceElement(deviceElement, device, error))
+    QVector<QDomElement> deviceElements;
+    for (QDomElement element = root.firstChildElement(QStringLiteral("Device")); !element.isNull();
+         element = element.nextSiblingElement(QStringLiteral("Device"))) {
+        deviceElements.append(element);
+    }
+    if (deviceElements.isEmpty()) {
+        QDomElement fallback = root.firstChildElement();
+        if (!fallback.isNull())
+            deviceElements.append(fallback);
+    }
+    if (deviceElements.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("Project contains no devices");
         return false;
-
-    device->applyConnectionSettings();
-    device->objects().Free();
-
-    const QString objectsPath = objectsFilePath(projectPath);
-    if (QFile::exists(objectsPath)) {
-        const int ret = device->objects().Load(objectsPath.toStdString().c_str());
-        if (ret != 0) {
-            if (error)
-                *error = QStringLiteral("Failed to load objects (%1)").arg(ret);
-            return false;
-        }
     }
 
+    project->clearDevices();
+
+    for (int i = 0; i < deviceElements.size(); ++i) {
+        const QDomElement deviceElement = deviceElements.at(i);
+        const QString name = deviceElement.attribute(QStringLiteral("name"),
+                                                     QStringLiteral("Meter %1").arg(i + 1));
+        GXDLMSDevice *device = project->addDevice(name);
+        if (!readDeviceElement(deviceElement, device, error))
+            return false;
+        device->applyConnectionSettings();
+        if (!loadDeviceObjects(projectPath, device, i, deviceElements.size(), error))
+            return false;
+    }
+
+    project->setCurrentDeviceIndex(0);
+    project->setPath(projectPath);
+    project->setDirty(false);
     return true;
+}
+
+bool ProjectSerializer::save(const QString &projectPath, GXDLMSDevice *device, QString *error)
+{
+    GXDLMSProject project;
+    project.clearDevices();
+    GXDLMSDevice *copy = project.addDevice(device->name());
+    DeviceCloner::copySettings(*device, *copy);
+    DeviceCloner::copyObjects(*device, *copy, error);
+    return save(projectPath, &project, error);
+}
+
+bool ProjectSerializer::load(const QString &projectPath, GXDLMSDevice *device, QString *error)
+{
+    GXDLMSProject project;
+    if (!load(projectPath, &project, error))
+        return false;
+    DeviceCloner::copySettings(*project.deviceAt(0), *device);
+    return DeviceCloner::copyObjects(*project.deviceAt(0), *device, error);
 }

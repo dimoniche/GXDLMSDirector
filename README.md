@@ -54,6 +54,18 @@ open GXDLMSDirector.app          # macOS
 - **Add/Delete COSEM objects** — offline редактирование association view
 - **Method invocation** — вкладка Methods, Invoke + macro recording
 - **Octet string editor** — hex-редактор для бинарных атрибутов
+- **HDLC setup editor** — выбор скорости + запись attr 2
+- **Disconnect control editor** — статус + Remote disconnect/reconnect
+- **Property table delegates** — bool и HDLC speed как combo
+- **DLMS Notifications** — Start/Stop, вкладка Notifications, hex/XML/PDU
+- **Trace modes** — View → Hex / XML / PDU / None, timestamps
+- **Force Read** — чтение всех атрибутов объекта (включая static)
+- **Cancel** — отмена длительных read-операций
+- **Multi-device projects** — несколько счётчиков в одном `.gxc`
+- **Recent projects** — MRU в меню File
+- **Find / Find Next** — поиск COSEM-объектов в дереве (Ctrl+F / F3)
+- **Clone device** — копия настроек и объектов
+- **Save/Load values** — экспорт/импорт `.objects.xml`
 - Асинхронные операции (не блокируют UI)
 
 ## Структура проекта
@@ -76,6 +88,8 @@ cmake/            # CMake-модули
 | **3 (готово)** | Profile Generic, DLMS Translator, HDLC address scanner |
 | **4 (готово)** | Макросы, conformance (MVP), PLC discover, data concentrator stub |
 | **5 (готово)** | COSEM object editors: attributes/methods, add/delete, invoke |
+| **6 (готово)** | HDLC/Disconnect editors, notifications, trace modes, force read, cancel |
+| **7 (готово)** | Multi-device projects, MRU, find, clone, save/load values |
 
 ## Лицензия
 

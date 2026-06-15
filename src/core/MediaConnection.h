@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMutex>
 #include <QObject>
 #include <QSerialPort>
 #include <QTcpSocket>
@@ -31,13 +32,15 @@ public:
 
     int sendData(const unsigned char *data, int size);
     int readData(QByteArray &buffer, unsigned char eop);
+    int readAvailable(QByteArray &buffer, int timeoutMs);
 
 signals:
-    void traceMessage(const QString &direction, const QString &hex);
+    void traceData(const QString &direction, const QByteArray &data);
 
 private:
     MediaType m_type = MediaType::Serial;
     int m_waitTimeMs = 5000;
+    mutable QMutex m_mutex;
     std::unique_ptr<QSerialPort> m_serial;
     std::unique_ptr<QTcpSocket> m_socket;
 };

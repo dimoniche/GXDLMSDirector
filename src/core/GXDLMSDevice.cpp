@@ -4,9 +4,11 @@
 #include "VariantConverter.h"
 
 #include <errorcodes.h>
+#include <enums.h>
 
 #include <QFutureWatcher>
 #include <QtConcurrent>
+#include <QTimer>
 
 struct ProfileGenericTaskResult
 {
@@ -17,9 +19,17 @@ struct ProfileGenericTaskResult
 GXDLMSDevice::GXDLMSDevice(QObject *parent)
     : QObject(parent)
     , m_communicator(std::make_unique<GXDLMSCommunicator>(this))
+    , m_notificationTimer(new QTimer(this))
 {
+    m_notificationTimer->setInterval(200);
+    connect(m_notificationTimer, &QTimer::timeout, this, &GXDLMSDevice::onNotificationPoll);
+
     QObject::connect(m_communicator.get(), &GXDLMSCommunicator::traceMessage,
                      this, &GXDLMSDevice::traceMessage);
+    QObject::connect(m_communicator.get(), &GXDLMSCommunicator::traceData,
+                     this, &GXDLMSDevice::traceData);
+    QObject::connect(m_communicator.get(), &GXDLMSCommunicator::notificationReceived,
+                     this, &GXDLMSDevice::notificationReceived);
     QObject::connect(m_communicator.get(), &GXDLMSCommunicator::progressChanged,
                      this, &GXDLMSDevice::progressChanged);
     QObject::connect(m_communicator.get(), &GXDLMSCommunicator::errorOccurred,
@@ -78,6 +88,7 @@ void GXDLMSDevice::readAllAsync()
     if (!(m_state & DeviceState::Connected))
         return;
 
+    m_cancelRequested = false;
     setState(m_state | DeviceState::Reading);
 
     auto *watcher = new QFutureWatcher<QList<ReadResult>>(this);
@@ -92,7 +103,33 @@ void GXDLMSDevice::readAllAsync()
                      });
 
     watcher->setFuture(QtConcurrent::run([this]() {
-        return m_communicator->readAll();
+        return m_communicator->readAll(m_forceRead, &m_cancelRequested);
+    }));
+}
+
+void GXDLMSDevice::readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll)
+{
+    if (!(m_state & DeviceState::Connected) || !object)
+        return;
+
+    m_cancelRequested = false;
+    setState(m_state | DeviceState::Reading);
+
+    auto *watcher = new QFutureWatcher<QList<ReadResult>>(this);
+    QObject::connect(watcher, &QFutureWatcher<QList<ReadResult>>::finished, this,
+                     [this, watcher]() {
+                         for (const ReadResult &result : watcher->result()) {
+                             if (result.errorCode == 0)
+                                 emit objectRead(result.object, result.attributeIndex, result.value);
+                             else
+                                 emit errorOccurred(tr("Read failed: %1").arg(result.errorCode));
+                         }
+                         setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
+                         watcher->deleteLater();
+                     });
+
+    watcher->setFuture(QtConcurrent::run([this, object, forceAll]() {
+        return m_communicator->readObjectAttributes(object, forceAll, &m_cancelRequested);
     }));
 }
 
@@ -197,6 +234,8 @@ void GXDLMSDevice::handleConnectionFinished(int ret)
         setConformanceInfo(m_communicator->proposedConformanceString(),
                            m_communicator->negotiatedConformanceString());
         setState(DeviceState::Connected | DeviceState::Initialized);
+        if (m_notificationsEnabled)
+            m_notificationTimer->start();
     } else {
         setState(DeviceState::None);
     }
@@ -204,6 +243,8 @@ void GXDLMSDevice::handleConnectionFinished(int ret)
 
 void GXDLMSDevice::handleDisconnectionFinished()
 {
+    m_notificationTimer->stop();
+    m_notificationBuffer.clear();
     setState(DeviceState::None);
 }
 
@@ -304,6 +345,64 @@ void GXDLMSDevice::handleProfileGenericFinished(CGXDLMSObject *object, const Pro
 
 void GXDLMSDevice::handleReadAllFinished()
 {
+    const bool cancelled = m_cancelRequested.exchange(false);
     setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
     emit readAllFinished();
+    if (cancelled)
+        emit traceMessage(tr("Operation cancelled."));
+}
+
+void GXDLMSDevice::cancelOperation()
+{
+    m_cancelRequested = true;
+}
+
+void GXDLMSDevice::setNotificationsEnabled(bool enabled)
+{
+    m_notificationsEnabled = enabled;
+    if (enabled && (m_state & DeviceState::Connected)) {
+        m_notificationBuffer.clear();
+        m_notificationTimer->start();
+    } else {
+        m_notificationTimer->stop();
+        m_notificationBuffer.clear();
+    }
+}
+
+void GXDLMSDevice::onNotificationPoll()
+{
+    if (!m_notificationsEnabled || !(m_state & DeviceState::Connected))
+        return;
+    if (m_state & (DeviceState::Reading | DeviceState::Writing | DeviceState::Connecting
+                   | DeviceState::Disconnecting))
+        return;
+
+    MediaConnection *media = m_communicator->media();
+    if (!media || !media->isOpen())
+        return;
+
+    QByteArray chunk;
+    if (media->readAvailable(chunk, 100) != 0 || chunk.isEmpty())
+        return;
+
+    m_notificationBuffer.append(chunk);
+    const unsigned char eop = m_communicator->client()->GetInterfaceType() == DLMS_INTERFACE_TYPE_HDLC
+                                  ? 0x7E
+                                  : 0x00;
+    if (eop == 0x7E) {
+        int start = 0;
+        for (int i = 0; i < m_notificationBuffer.size(); ++i) {
+            if (static_cast<unsigned char>(m_notificationBuffer.at(i)) == eop) {
+                const QByteArray frame = m_notificationBuffer.mid(start, i - start + 1);
+                if (frame.size() > 2)
+                    emit notificationReceived(frame);
+                start = i + 1;
+            }
+        }
+        if (start > 0)
+            m_notificationBuffer.remove(0, start);
+    } else {
+        emit notificationReceived(m_notificationBuffer);
+        m_notificationBuffer.clear();
+    }
 }

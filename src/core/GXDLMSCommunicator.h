@@ -14,6 +14,7 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,7 +42,8 @@ public:
 
     int readList(std::vector<std::pair<CGXDLMSObject *, unsigned char>> &list);
     int getAssociationView();
-    QList<ReadResult> readAll();
+    QList<ReadResult> readAll(bool forceAll, std::atomic<bool> *cancelFlag);
+    QList<ReadResult> readObjectAttributes(CGXDLMSObject *object, bool forceAll, std::atomic<bool> *cancelFlag);
 
     int readProfileGenericColumns(CGXDLMSObject *object);
     int readProfileGenericByEntry(CGXDLMSObject *object, int index, int count, ProfileGenericResult &result);
@@ -55,6 +57,8 @@ public:
 
 signals:
     void traceMessage(const QString &message);
+    void traceData(const QString &direction, const QByteArray &data);
+    void notificationReceived(const QByteArray &data);
     void progressChanged(const QString &description, int current, int maximum);
     void errorOccurred(const QString &message);
 

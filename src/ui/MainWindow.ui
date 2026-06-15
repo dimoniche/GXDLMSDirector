@@ -58,6 +58,66 @@
           </widget>
          </item>
          <item>
+          <widget class="QGroupBox" name="hdlcEditorGroup">
+           <property name="title">
+            <string>HDLC setup editor</string>
+           </property>
+           <layout class="QHBoxLayout" name="hdlcEditorLayout">
+            <item>
+             <widget class="QLabel" name="hdlcSpeedLabel">
+              <property name="text">
+               <string>Communication speed</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="hdlcSpeedCombo"/>
+            </item>
+            <item>
+             <widget class="QPushButton" name="hdlcWriteButton">
+              <property name="text">
+               <string>Write speed (attr 2)</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="disconnectControlGroup">
+           <property name="title">
+            <string>Disconnect control</string>
+           </property>
+           <layout class="QVBoxLayout" name="disconnectControlLayout">
+            <item>
+             <widget class="QLabel" name="disconnectStateLabel">
+              <property name="text">
+               <string>State: —</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="disconnectButtonsLayout">
+              <item>
+               <widget class="QPushButton" name="remoteDisconnectButton">
+                <property name="text">
+                 <string>Remote disconnect</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="remoteReconnectButton">
+                <property name="text">
+                 <string>Remote reconnect</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
           <widget class="QTabWidget" name="objectEditorTabs">
            <property name="currentIndex">
             <number>0</number>
@@ -134,13 +194,44 @@
          </item>
         </layout>
        </widget>
-       <widget class="QPlainTextEdit" name="traceLog">
-        <property name="readOnly">
-         <bool>true</bool>
+       <widget class="QTabWidget" name="logTabs">
+        <property name="currentIndex">
+         <number>0</number>
         </property>
-        <property name="placeholderText">
-         <string>DLMS trace log...</string>
-        </property>
+        <widget class="QWidget" name="traceTab">
+         <attribute name="title">
+          <string>Trace</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="traceTabLayout">
+          <item>
+           <widget class="QPlainTextEdit" name="traceLog">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+            <property name="placeholderText">
+             <string>DLMS trace log...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="notificationsTab">
+         <attribute name="title">
+          <string>Notifications</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="notificationsTabLayout">
+          <item>
+           <widget class="QPlainTextEdit" name="notificationsLog">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+            <property name="placeholderText">
+             <string>DLMS push notifications...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
        </widget>
       </widget>
      </widget>
@@ -156,17 +247,65 @@
      <height>24</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionTraceHex"/>
+    <addaction name="actionTraceXml"/>
+    <addaction name="actionTracePdu"/>
+    <addaction name="actionTraceNone"/>
+    <addaction name="separator"/>
+    <addaction name="actionTraceTimestamps"/>
+    <addaction name="separator"/>
+    <addaction name="actionClearTrace"/>
+   </widget>
+   <widget class="QMenu" name="menuNotifications">
+    <property name="title">
+     <string>Notifications</string>
+    </property>
+    <addaction name="actionStartNotifications"/>
+    <addaction name="actionStopNotifications"/>
+    <addaction name="separator"/>
+    <addaction name="actionNotificationHex"/>
+    <addaction name="actionNotificationXml"/>
+    <addaction name="actionNotificationPdu"/>
+    <addaction name="separator"/>
+    <addaction name="actionNotificationTimestamps"/>
+    <addaction name="separator"/>
+    <addaction name="actionClearNotifications"/>
+   </widget>
    <widget class="QMenu" name="menuFile">
     <property name="title">
      <string>File</string>
     </property>
     <addaction name="actionNewDevice"/>
+    <addaction name="actionAddDevice"/>
     <addaction name="actionOpen"/>
+    <addaction name="menuRecentFiles"/>
     <addaction name="actionSave"/>
     <addaction name="actionSaveAs"/>
+    <addaction name="separator"/>
+    <addaction name="actionSaveValues"/>
+    <addaction name="actionLoadValues"/>
+    <addaction name="separator"/>
     <addaction name="actionDeviceProperties"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuRecentFiles">
+    <property name="title">
+     <string>Recent Projects</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionFindObject"/>
+    <addaction name="actionFindNextObject"/>
+    <addaction name="separator"/>
+    <addaction name="actionCloneDevice"/>
    </widget>
    <widget class="QMenu" name="menuObjects">
     <property name="title">
@@ -187,6 +326,9 @@
     <addaction name="actionWriteObject"/>
     <addaction name="actionInvokeMethod"/>
     <addaction name="actionReadProfileGeneric"/>
+    <addaction name="separator"/>
+    <addaction name="actionForceRead"/>
+    <addaction name="actionCancel"/>
    </widget>
    <widget class="QMenu" name="menuManufacturers">
     <property name="title">
@@ -216,6 +358,9 @@
     <addaction name="actionDataConcentrators"/>
    </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
+   <addaction name="menuNotifications"/>
    <addaction name="menuObjects"/>
    <addaction name="menuConnection"/>
    <addaction name="menuManufacturers"/>
@@ -239,6 +384,7 @@
    <addaction name="actionReadAll"/>
    <addaction name="actionReadObject"/>
    <addaction name="actionWriteObject"/>
+   <addaction name="actionCancel"/>
    <addaction name="actionDeviceProperties"/>
   </widget>
   <action name="actionOpen">
@@ -314,7 +460,46 @@
   </action>
   <action name="actionNewDevice">
    <property name="text">
-    <string>New Device</string>
+    <string>New Project</string>
+   </property>
+  </action>
+  <action name="actionAddDevice">
+   <property name="text">
+    <string>Add Device...</string>
+   </property>
+  </action>
+  <action name="actionCloneDevice">
+   <property name="text">
+    <string>Clone Device</string>
+   </property>
+  </action>
+  <action name="actionSaveValues">
+   <property name="text">
+    <string>Save Values As...</string>
+   </property>
+  </action>
+  <action name="actionLoadValues">
+   <property name="text">
+    <string>Load Values...</string>
+   </property>
+  </action>
+  <action name="actionFindObject">
+   <property name="text">
+    <string>Find Object...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
+   </property>
+  </action>
+  <action name="actionFindNextObject">
+   <property name="text">
+    <string>Find Next</string>
+   </property>
+   <property name="shortcut">
+    <string>F3</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionDeviceProperties">
@@ -387,6 +572,132 @@
    </property>
    <property name="enabled">
     <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionForceRead">
+   <property name="text">
+    <string>Force Read</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Read all attributes from the selected object, including static ones.</string>
+   </property>
+  </action>
+  <action name="actionCancel">
+   <property name="text">
+    <string>Cancel</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionTraceHex">
+   <property name="text">
+    <string>Trace: Hex</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionTraceXml">
+   <property name="text">
+    <string>Trace: XML</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionTracePdu">
+   <property name="text">
+    <string>Trace: PDU</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionTraceNone">
+   <property name="text">
+    <string>Trace: None</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionTraceTimestamps">
+   <property name="text">
+    <string>Trace timestamps</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionClearTrace">
+   <property name="text">
+    <string>Clear trace</string>
+   </property>
+  </action>
+  <action name="actionStartNotifications">
+   <property name="text">
+    <string>Start</string>
+   </property>
+  </action>
+  <action name="actionStopNotifications">
+   <property name="text">
+    <string>Stop</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionNotificationHex">
+   <property name="text">
+    <string>Notifications: Hex</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionNotificationXml">
+   <property name="text">
+    <string>Notifications: XML</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionNotificationPdu">
+   <property name="text">
+    <string>Notifications: PDU</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionNotificationTimestamps">
+   <property name="text">
+    <string>Notification timestamps</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionClearNotifications">
+   <property name="text">
+    <string>Clear notifications</string>
    </property>
   </action>
  </widget>

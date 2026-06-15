@@ -22,10 +22,8 @@ GXDLMSCommunicator::GXDLMSCommunicator(GXDLMSDevice *device, QObject *parent)
     , m_media(std::make_unique<MediaConnection>(this))
 {
     applyClientSettings();
-    QObject::connect(m_media.get(), &MediaConnection::traceMessage, this,
-            [this](const QString &dir, const QString &hex) {
-                emit traceMessage(dir + QStringLiteral(": ") + hex);
-            });
+    QObject::connect(m_media.get(), &MediaConnection::traceData, this,
+                     &GXDLMSCommunicator::traceData);
 }
 
 GXDLMSCommunicator::~GXDLMSCommunicator()
@@ -110,8 +108,13 @@ int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
 
     do {
         if (notify.GetData().GetSize() != 0) {
-            if (!notify.IsMoreData())
+            if (!notify.IsMoreData()) {
+                CGXByteBuffer notifyData = notify.GetData();
+                const QByteArray payload(reinterpret_cast<const char *>(notifyData.GetData()),
+                                         static_cast<int>(notifyData.GetSize()));
+                emit notificationReceived(payload);
                 notify.Clear();
+            }
             continue;
         }
 
@@ -449,21 +452,41 @@ QString GXDLMSCommunicator::negotiatedConformanceString() const
     return ConformanceHelper::conformanceToString(m_client->GetNegotiatedConformance());
 }
 
-QList<ReadResult> GXDLMSCommunicator::readAll()
+QList<ReadResult> GXDLMSCommunicator::readAll(bool forceAll, std::atomic<bool> *cancelFlag)
 {
     QList<ReadResult> results;
     for (auto *obj : m_client->GetObjects()) {
-        for (int index = 1; index <= obj->GetAttributeCount(); ++index) {
-            const DLMS_ACCESS_MODE access = obj->GetAccess(index);
-            if (access != DLMS_ACCESS_MODE_READ && access != DLMS_ACCESS_MODE_READ_WRITE)
-                continue;
+        if (cancelFlag && cancelFlag->load())
+            break;
 
-            ReadResult result;
-            result.object = obj;
-            result.attributeIndex = index;
-            result.errorCode = read(obj, index, result.value);
-            results.append(result);
-        }
+        for (const ReadResult &partial : readObjectAttributes(obj, forceAll, cancelFlag))
+            results.append(partial);
+    }
+    return results;
+}
+
+QList<ReadResult> GXDLMSCommunicator::readObjectAttributes(CGXDLMSObject *object, bool forceAll,
+                                                           std::atomic<bool> *cancelFlag)
+{
+    QList<ReadResult> results;
+    if (!object)
+        return results;
+
+    std::vector<int> indexes;
+    object->GetAttributeIndexToRead(forceAll, indexes);
+    for (int index : indexes) {
+        if (cancelFlag && cancelFlag->load())
+            break;
+
+        const DLMS_ACCESS_MODE access = object->GetAccess(index);
+        if (access != DLMS_ACCESS_MODE_READ && access != DLMS_ACCESS_MODE_READ_WRITE)
+            continue;
+
+        ReadResult result;
+        result.object = object;
+        result.attributeIndex = index;
+        result.errorCode = read(object, index, result.value);
+        results.append(result);
     }
     return results;
 }

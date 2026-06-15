@@ -9,8 +9,9 @@
 #include "MediaConnection.h"
 #include "ProfileGenericResult.h"
 #include "ReadResult.h"
-
 #include <QDateTime>
+#include <QTimer>
+#include <atomic>
 
 class CGXDLMSObject;
 class CGXDLMSObjectCollection;
@@ -109,10 +110,18 @@ public:
     void disconnectAsync();
     void readAllAsync();
     void readObjectAsync(CGXDLMSObject *object, int attributeIndex);
+    void readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll);
     void writeObjectAsync(CGXDLMSObject *object, int attributeIndex, const QString &value);
     void invokeMethodAsync(CGXDLMSObject *object, int methodIndex, const QString &parameter);
     void readProfileGenericByEntryAsync(CGXDLMSObject *object, int index, int count);
     void readProfileGenericByRangeAsync(CGXDLMSObject *object, const QDateTime &start, const QDateTime &end);
+
+    void cancelOperation();
+    bool forceRead() const { return m_forceRead; }
+    void setForceRead(bool force) { m_forceRead = force; }
+
+    bool notificationsEnabled() const { return m_notificationsEnabled; }
+    void setNotificationsEnabled(bool enabled);
 
     void applyConnectionSettings();
 
@@ -124,10 +133,13 @@ private:
     void handleMethodInvokeFinished(CGXDLMSObject *object, int methodIndex, int ret);
     void handleReadAllFinished();
     void handleProfileGenericFinished(CGXDLMSObject *object, const ProfileGenericResult &result);
+    void onNotificationPoll();
 
 signals:
     void stateChanged(DeviceStates state);
     void traceMessage(const QString &message);
+    void traceData(const QString &direction, const QByteArray &data);
+    void notificationReceived(const QByteArray &data);
     void progressChanged(const QString &description, int current, int maximum);
     void errorOccurred(const QString &message);
     void objectRead(CGXDLMSObject *object, int attributeIndex, const QString &value);
@@ -168,4 +180,9 @@ private:
     QString m_negotiatedConformance;
 
     std::unique_ptr<GXDLMSCommunicator> m_communicator;
+    std::atomic<bool> m_cancelRequested{false};
+    bool m_forceRead = false;
+    bool m_notificationsEnabled = false;
+    QTimer *m_notificationTimer = nullptr;
+    QByteArray m_notificationBuffer;
 };

@@ -26,6 +26,10 @@ set(SOURCES
     src/core/DataConcentratorManager.cpp
     src/core/ObjectAttributeNames.cpp
     src/core/CosemObjectHelper.cpp
+    src/core/GXDLMSProject.cpp
+    src/core/RecentFilesManager.cpp
+    src/core/ValuesSerializer.cpp
+    src/core/TraceFormatter.cpp
     src/core/GXDLMSCommunicator.cpp
     src/core/GXDLMSDevice.cpp
     src/core/GXDLMSDeviceGurux.cpp
@@ -39,6 +43,8 @@ set(SOURCES
     src/ui/PlcDiscoverDialog.cpp
     src/ui/CosemObjectDialog.cpp
     src/ui/ByteArrayEditorDialog.cpp
+    src/ui/PropertyTableDelegate.cpp
+    src/ui/FindObjectDialog.cpp
 )
 
 set(HEADERS
@@ -60,6 +66,10 @@ set(HEADERS
     src/core/DataConcentratorManager.h
     src/core/ObjectAttributeNames.h
     src/core/CosemObjectHelper.h
+    src/core/GXDLMSProject.h
+    src/core/RecentFilesManager.h
+    src/core/ValuesSerializer.h
+    src/core/TraceFormatter.h
     src/ui/MainWindow.h
     src/ui/DevicePropertiesDialog.h
     src/ui/ProfileGenericDialog.h
@@ -70,6 +80,8 @@ set(HEADERS
     src/ui/PlcDiscoverDialog.h
     src/ui/CosemObjectDialog.h
     src/ui/ByteArrayEditorDialog.h
+    src/ui/PropertyTableDelegate.h
+    src/ui/FindObjectDialog.h
 )
 
 set(UI_FILES
@@ -82,6 +94,7 @@ set(UI_FILES
     src/ui/ConformanceTestDialog.ui
     src/ui/PlcDiscoverDialog.ui
     src/ui/CosemObjectDialog.ui
+    src/ui/FindObjectDialog.ui
 )
 
 add_executable(GXDLMSDirector ${SOURCES} ${HEADERS} ${UI_FILES})
