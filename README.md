@@ -139,20 +139,6 @@ cmake/
 
 **Не планируется:** Data Concentrator plugins; импорт `.gxc` из C# Director (свой XML-формат Qt-порта).
 
-### Фаза 8a — Profile Generic в главном окне
-
-Реализовано: вкладка **Buffer**, режим **By entry** по умолчанию, таблица в главном окне, меню/горячая клавиша запускают чтение.
-
-### Фаза 8d — Security
-
-Реализовано: вкладка **Security** в Device Properties — режим (None / Auth / Encrypt / Auth+Encrypt), ключи в hex, сохранение в проект.
-
-### Фаза 8c — Packaging
-
-- **macOS:** Release-сборка, `macdeployqt` (Qt в `.app`), ad-hoc codesign, `.dmg` в `dist/`
-- **Linux:** `cmake --install` + `linuxdeploy` + plugin Qt → AppImage в `dist/`
-- Обёртка: `./packaging/package.sh` (выбор по ОС)
-
 ## Лицензия
 
 GPL-2.0 (как оригинальный GXDLMSDirector и Gurux.DLMS.cpp)
