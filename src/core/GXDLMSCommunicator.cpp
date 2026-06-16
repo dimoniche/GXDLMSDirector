@@ -1,6 +1,7 @@
 #include "GXDLMSCommunicator.h"
 #include "GXDLMSDevice.h"
 
+#include "AssociationViewParser.h"
 #include "VariantConverter.h"
 #include "ConformanceHelper.h"
 
@@ -403,7 +404,9 @@ int GXDLMSCommunicator::getAssociationView()
 
     emit progressChanged(tr("Parsing COSEM objects..."), 2, 2);
     if (reply.GetValue().vt == DLMS_DATA_TYPE_ARRAY && !reply.GetValue().Arr.empty()) {
-        ret = m_client->ParseObjects(reply.GetValue().Arr, true);
+        std::vector<CGXDLMSVariant> objects = reply.GetValue().Arr;
+        AssociationViewParser::normalizeObjects(objects);
+        ret = m_client->ParseObjects(objects, true);
     } else {
         reply.GetData().SetPosition(0);
         ret = m_client->ParseObjects(reply.GetData(), true);

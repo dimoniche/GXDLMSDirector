@@ -5,6 +5,8 @@
 #include <enums.h>
 #include <GXHelpers.h>
 
+#include "../src/core/AssociationViewParser.h"
+
 #include <QTcpSocket>
 #include <QCoreApplication>
 
@@ -129,37 +131,11 @@ int main(int argc, char *argv[])
                  reply.GetValue().Arr.size(), reply.GetData().GetSize());
 
     reply.GetData().SetPosition(0);
-    ret = client.ParseObjects(reply.GetData(), true);
-    std::fprintf(stderr, "ParseObjects(Data) -> %d %s objects=%zu\n", ret,
+    std::vector<CGXDLMSVariant> objects = reply.GetValue().Arr;
+    AssociationViewParser::normalizeObjects(objects);
+    ret = client.ParseObjects(objects, true);
+    std::fprintf(stderr, "ParseObjects(normalized) -> %d %s objects=%zu\n", ret,
                  CGXDLMSConverter::GetErrorMessage(ret), client.GetObjects().size());
-    client.GetObjects().Free();
-
-    for (size_t n = 1; n <= reply.GetValue().Arr.size(); ++n) {
-        std::vector<CGXDLMSVariant> slice(reply.GetValue().Arr.begin(),
-                                          reply.GetValue().Arr.begin() + static_cast<long>(n));
-        client.GetObjects().Free();
-        const int sliceRet = client.ParseObjects(slice, true);
-        if (sliceRet != 0) {
-            CGXDLMSVariant bad = reply.GetValue().Arr[n - 1];
-            std::fprintf(stderr, "failed at index %zu ret=%d arrSize=%zu vt=%d\n", n - 1, sliceRet,
-                         bad.Arr.size(), bad.vt);
-            if (!bad.Arr.empty()) {
-                std::fprintf(stderr, "  classId=%d version vt=%d access vt=%d\n",
-                             bad.Arr[0].ToInteger(),
-                             bad.Arr.size() > 1 ? bad.Arr[1].vt : -1,
-                             bad.Arr.size() > 3 ? bad.Arr[3].vt : -1);
-                if (bad.Arr.size() > 3 && bad.Arr[3].vt == DLMS_DATA_TYPE_STRUCTURE
-                    && !bad.Arr[3].Arr.empty() && bad.Arr[3].Arr[0].vt == DLMS_DATA_TYPE_ARRAY
-                    && !bad.Arr[3].Arr[0].Arr.empty()) {
-                    const auto &attr0 = bad.Arr[3].Arr[0].Arr[0];
-                    std::fprintf(stderr, "  firstAttr size=%zu [1].vt=%d [2].vt=%d\n", attr0.Arr.size(),
-                                 attr0.Arr.size() > 1 ? attr0.Arr[1].vt : -1,
-                                 attr0.Arr.size() > 2 ? attr0.Arr[2].vt : -1);
-                }
-            }
-            break;
-        }
-    }
 
     return ret == 0 ? 0 : 1;
 }

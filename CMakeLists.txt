@@ -30,6 +30,7 @@ set(SOURCES
     src/core/RecentFilesManager.cpp
     src/core/ValuesSerializer.cpp
     src/core/TraceFormatter.cpp
+    src/core/AssociationViewParser.cpp
     src/core/GXDLMSCommunicator.cpp
     src/core/GXDLMSDevice.cpp
     src/core/GXDLMSDeviceGurux.cpp
@@ -70,6 +71,7 @@ set(HEADERS
     src/core/RecentFilesManager.h
     src/core/ValuesSerializer.h
     src/core/TraceFormatter.h
+    src/core/AssociationViewParser.h
     src/ui/MainWindow.h
     src/ui/DevicePropertiesDialog.h
     src/ui/ProfileGenericDialog.h
