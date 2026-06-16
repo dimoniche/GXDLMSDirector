@@ -421,6 +421,56 @@ int GXDLMSCommunicator::getAssociationView()
 
 namespace {
 
+int dlmsAccessErrorCode(int errorCode)
+{
+    if (errorCode >= DLMS_ERROR_CODE_OK && errorCode <= DLMS_ERROR_CODE_OTHER_REASON)
+        return errorCode;
+    return errorCode & 0xFF;
+}
+
+bool isSuppressibleReadError(int errorCode)
+{
+    switch (dlmsAccessErrorCode(errorCode)) {
+    case DLMS_ERROR_CODE_HARDWARE_FAULT:
+    case DLMS_ERROR_CODE_TEMPORARY_FAILURE:
+    case DLMS_ERROR_CODE_READ_WRITE_DENIED:
+    case DLMS_ERROR_CODE_UNDEFINED_OBJECT:
+    case DLMS_ERROR_CODE_INCONSISTENT_CLASS_OR_OBJECT:
+    case DLMS_ERROR_CODE_UNAVAILABLE_OBJECT:
+    case DLMS_ERROR_CODE_UNMATCH_TYPE:
+    case DLMS_ERROR_CODE_ACCESS_VIOLATED:
+    case DLMS_ERROR_CODE_OTHER_REASON:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool shouldMarkAttributeNoAccess(CGXDLMSObject *object, int attributeIndex, int errorCode)
+{
+    if (object && object->GetObjectType() == DLMS_OBJECT_TYPE_PROFILE_GENERIC && attributeIndex == 2
+        && dlmsAccessErrorCode(errorCode) == DLMS_ERROR_CODE_OTHER_REASON) {
+        return false;
+    }
+    return isSuppressibleReadError(errorCode);
+}
+
+bool shouldSkipAttributeRead(CGXDLMSObject *object, int attributeIndex, bool forceAll)
+{
+    if (attributeIndex == 1)
+        return true;
+
+    if (object && object->GetObjectType() == DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
+        // Buffer must be read with selective access (Profile Generic dialog).
+        if (attributeIndex == 2)
+            return true;
+        if (forceAll && attributeIndex == 3)
+            return true;
+    }
+
+    return false;
+}
+
 void fillProfileGenericResult(CGXDLMSProfileGeneric *pg, ProfileGenericResult &result)
 {
     result.columnHeaders.clear();
@@ -555,6 +605,9 @@ QList<ReadResult> GXDLMSCommunicator::readObjectAttributes(CGXDLMSObject *object
         if (cancelFlag && cancelFlag->load())
             break;
 
+        if (shouldSkipAttributeRead(object, index, forceAll))
+            continue;
+
         const DLMS_ACCESS_MODE access = object->GetAccess(index);
         if (access != DLMS_ACCESS_MODE_READ && access != DLMS_ACCESS_MODE_READ_WRITE)
             continue;
@@ -563,6 +616,12 @@ QList<ReadResult> GXDLMSCommunicator::readObjectAttributes(CGXDLMSObject *object
         result.object = object;
         result.attributeIndex = index;
         result.errorCode = read(object, index, result.value);
+        if (result.errorCode != 0) {
+            if (shouldMarkAttributeNoAccess(object, index, result.errorCode))
+                object->SetAccess(index, DLMS_ACCESS_MODE_NONE);
+            if (isSuppressibleReadError(result.errorCode))
+                continue;
+        }
         results.append(result);
     }
     return results;

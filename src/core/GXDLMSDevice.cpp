@@ -10,6 +10,18 @@
 #include <QMetaObject>
 #include <QThread>
 
+namespace {
+
+QString formatDlmsError(int errorCode)
+{
+    const char *message = CGXDLMSConverter::GetErrorMessage(errorCode);
+    if (!message || !message[0])
+        return QString::number(errorCode);
+    return QString::fromUtf8(message);
+}
+
+} // namespace
+
 GXDLMSDevice::GXDLMSDevice(QObject *parent)
     : QObject(parent)
     , m_communicator(std::make_unique<GXDLMSCommunicator>(this, nullptr))
@@ -40,7 +52,7 @@ GXDLMSDevice::GXDLMSDevice(QObject *parent)
                     if (result.errorCode == 0)
                         emit objectRead(result.object, result.attributeIndex, result.value);
                     else
-                        emit errorOccurred(tr("Read failed: %1").arg(result.errorCode));
+                        emit errorOccurred(tr("Read failed: %1").arg(formatDlmsError(result.errorCode)));
                 }
                 setState(m_state & ~DeviceStates(DeviceState::Reading));
             });
@@ -213,7 +225,7 @@ void GXDLMSDevice::handleObjectReadFinished(CGXDLMSObject *object, int attribute
     if (ret == 0)
         emit objectRead(object, attributeIndex, value);
     else
-        emit errorOccurred(tr("Read failed: %1").arg(ret));
+        emit errorOccurred(tr("Read failed: %1").arg(formatDlmsError(ret)));
 }
 
 void GXDLMSDevice::handleObjectWriteFinished(CGXDLMSObject *object, int attributeIndex,
