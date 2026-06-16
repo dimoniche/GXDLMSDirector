@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="icons/GXDLMSDirector.png">../../packaging/icons/GXDLMSDirector.png</file>
+        <file alias="icons/GXDLMSDirector.ico">../../packaging/icons/GXDLMSDirector.ico</file>
+    </qresource>
+</RCC>

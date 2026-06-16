@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QIcon>
 #include <QLockFile>
 #include <QMessageBox>
 #include <QStandardPaths>
@@ -41,6 +42,7 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName(QStringLiteral("GXDLMSDirector"));
     QApplication::setOrganizationName(QStringLiteral("Gurux"));
     QApplication::setApplicationVersion(QStringLiteral(GXDLMS_DIRECTOR_VERSION));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/GXDLMSDirector.png")));
 
     qRegisterMetaType<CGXDLMSObject *>("CGXDLMSObject*");
     qRegisterMetaType<DeviceStates>("DeviceStates");

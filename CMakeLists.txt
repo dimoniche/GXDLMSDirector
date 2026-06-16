@@ -50,6 +50,16 @@ set(SOURCES
     src/ui/FindObjectDialog.cpp
 )
 
+set(GXDLMS_RESOURCES
+    src/resources/resources.qrc
+)
+
+if(APPLE)
+    set(GXDLMS_APP_ICON "${CMAKE_SOURCE_DIR}/packaging/icons/GXDLMSDirector.icns")
+    set_source_files_properties(${GXDLMS_APP_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    list(APPEND GXDLMS_RESOURCES ${GXDLMS_APP_ICON})
+endif()
+
 set(HEADERS
     src/core/DeviceState.h
     src/core/MediaConnection.h
@@ -100,7 +110,7 @@ set(UI_FILES
     src/ui/FindObjectDialog.ui
 )
 
-add_executable(GXDLMSDirector ${SOURCES} ${HEADERS} ${UI_FILES})
+add_executable(GXDLMSDirector ${SOURCES} ${HEADERS} ${UI_FILES} ${GXDLMS_RESOURCES})
 
 target_link_libraries(GXDLMSDirector PRIVATE
     Qt6::Core
@@ -125,6 +135,7 @@ install(FILES "${CMAKE_SOURCE_DIR}/VERSION" DESTINATION share/GXDLMSDirector)
 if(APPLE)
     set_target_properties(GXDLMSDirector PROPERTIES
         MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_ICON_FILE GXDLMSDirector.icns
         MACOSX_BUNDLE_GUI_IDENTIFIER fi.gurux.GXDLMSDirector
         MACOSX_BUNDLE_BUNDLE_NAME GXDLMSDirector
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}

@@ -13,4 +13,7 @@ endfunction()
 if(NOT APPLE)
     install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/GXDLMSDirector.desktop"
             DESTINATION share/applications)
+    install(FILES "${CMAKE_SOURCE_DIR}/packaging/icons/GXDLMSDirector.png"
+            DESTINATION share/icons/hicolor/256x256/apps
+            RENAME GXDLMSDirector.png)
 endif()

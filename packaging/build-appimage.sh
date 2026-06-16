@@ -31,12 +31,15 @@ DESTDIR="$APPDIR" cmake --install "$BUILD" --prefix /usr
 
 EXEC="$APPDIR/usr/bin/GXDLMSDirector"
 DESKTOP="$APPDIR/usr/share/applications/GXDLMSDirector.desktop"
+ICON="$ROOT/packaging/icons/GXDLMSDirector.png"
 test -x "$EXEC"
 test -f "$DESKTOP"
+test -f "$ICON"
 
 linuxdeploy --appdir "$APPDIR" \
     --executable "$EXEC" \
     --desktop-file "$DESKTOP" \
+    --icon-file "$ICON" \
     --plugin qt \
     --output appimage
 

@@ -121,7 +121,7 @@ src/
   core/           # DLMS-слой (Communicator, Device, Serializer, …)
   ui/             # Qt6 UI
 unit_tests/       # Qt Test (ProjectSerializer, VariantConverter)
-packaging/        # build-dmg.sh, build-appimage.sh
+packaging/        # build-dmg.sh, build-appimage.sh, icons/ (оригинальная иконка Gurux)
 third_party/
   gurux_dlms/     # Gurux.DLMS.cpp
 cmake/
