@@ -230,6 +230,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->clockEditorGroup->setVisible(false);
     ui->hdlcEditorGroup->setVisible(false);
     ui->disconnectControlGroup->setVisible(false);
+    ui->profileGenericGroup->setVisible(false);
 
     m_propertyDelegate = new PropertyTableDelegate(ui->propertyTable);
     ui->propertyTable->setItemDelegateForColumn(2, m_propertyDelegate);
@@ -330,6 +331,7 @@ void MainWindow::setupConnections()
     connect(ui->hdlcWriteButton, &QPushButton::clicked, this, &MainWindow::onHdlcWrite);
     connect(ui->remoteDisconnectButton, &QPushButton::clicked, this, &MainWindow::onRemoteDisconnect);
     connect(ui->remoteReconnectButton, &QPushButton::clicked, this, &MainWindow::onRemoteReconnect);
+    connect(ui->readProfileGenericButton, &QPushButton::clicked, this, &MainWindow::onReadProfileGeneric);
     connect(ui->actionCancel, &QAction::triggered, this, &MainWindow::onCancel);
     connect(ui->actionForceRead, &QAction::toggled, this, &MainWindow::onForceReadToggled);
     connect(ui->actionTraceHex, &QAction::triggered, this, &MainWindow::onTraceModeChanged);
@@ -1135,7 +1137,9 @@ void MainWindow::updateActions()
     ui->actionWriteObject->setEnabled(connected && !busy && hasSelection);
     ui->actionCancel->setEnabled(busy);
     ui->actionInvokeMethod->setEnabled(connected && !busy && hasSelection && selectedMethodIndex() > 0);
-    ui->actionReadProfileGeneric->setEnabled(connected && !busy && isProfileGenericSelected());
+    const bool profileGenericSelected = isProfileGenericSelected();
+    ui->actionReadProfileGeneric->setEnabled(connected && !busy && profileGenericSelected);
+    ui->readProfileGenericButton->setEnabled(connected && !busy && profileGenericSelected);
     ui->actionDeleteObject->setEnabled(hasSelection && !busy);
     ui->actionEditOctetString->setEnabled(hasSelection && isOctetStringSelected());
     ui->invokeMethodButton->setEnabled(connected && !busy && hasSelection && selectedMethodIndex() > 0);
@@ -1407,6 +1411,7 @@ void MainWindow::updateObjectEditors(CGXDLMSObject *object)
     ui->clockEditorGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_CLOCK);
     ui->hdlcEditorGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_IEC_HDLC_SETUP);
     ui->disconnectControlGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_DISCONNECT_CONTROL);
+    ui->profileGenericGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_PROFILE_GENERIC);
     updatePropertyTable(object);
     updateMethodsTable(object);
     updateDisconnectControlPanel(object);
@@ -1783,6 +1788,8 @@ void MainWindow::showObjectTreeContextMenu(const QPoint &pos)
     menu.addAction(ui->actionRead);
     if (kind == TreeItemKind::ObjectNode) {
         menu.addAction(ui->actionReadObject);
+        if (isProfileGenericSelected())
+            menu.addAction(ui->actionReadProfileGeneric);
         menu.addSeparator();
         menu.addAction(ui->actionDeleteObject);
     }
@@ -1817,6 +1824,8 @@ void MainWindow::showObjectListContextMenu(const QPoint &pos)
 
     if (kind == TreeItemKind::ObjectNode) {
         menu.addAction(ui->actionReadObject);
+        if (isProfileGenericSelected())
+            menu.addAction(ui->actionReadProfileGeneric);
         menu.addSeparator();
         menu.addAction(ui->actionDeleteObject);
     }

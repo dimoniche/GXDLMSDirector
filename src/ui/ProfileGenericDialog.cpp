@@ -3,6 +3,7 @@
 
 #include <GXDLMSObject.h>
 #include <enums.h>
+#include <errorcodes.h>
 
 #include <QDateTime>
 #include <QHeaderView>
@@ -15,6 +16,10 @@ ProfileGenericDialog::ProfileGenericDialog(GXDLMSDevice *device, CGXDLMSObject *
     , m_object(object)
 {
     ui->setupUi(this);
+
+    std::string logicalName;
+    object->GetLogicalName(logicalName);
+    setWindowTitle(tr("Profile Generic — %1").arg(QString::fromStdString(logicalName)));
 
     const QDateTime now = QDateTime::currentDateTime();
     ui->endDateTime->setDateTime(now);
@@ -69,7 +74,10 @@ void ProfileGenericDialog::onProfileGenericRead(CGXDLMSObject *object, const Pro
 
     ui->readButton->setEnabled(true);
     if (result.errorCode != 0) {
-        QMessageBox::warning(this, tr("Profile Generic"), result.errorMessage);
+        QMessageBox::warning(this, tr("Profile Generic"),
+                             result.errorMessage.isEmpty()
+                                 ? tr("Profile Generic read failed: %1").arg(result.errorCode)
+                                 : result.errorMessage);
         return;
     }
 

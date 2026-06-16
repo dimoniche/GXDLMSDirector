@@ -16,6 +16,7 @@
 #include <QList>
 
 #include <QDateTime>
+#include <QTime>
 #include <QTimer>
 
 GXDLMSCommunicator::GXDLMSCommunicator(GXDLMSDevice *device, QObject *parent)
@@ -489,21 +490,30 @@ void fillProfileGenericResult(CGXDLMSProfileGeneric *pg, ProfileGenericResult &r
     }
 }
 
-struct tm qDateTimeToTm(const QDateTime &dateTime)
+struct tm qDateTimeToProfileRangeTm(const QDateTime &dateTime)
 {
-    const QDateTime utc = dateTime.toUTC();
+    QDateTime utc = dateTime.toUTC();
+    utc.setTime(QTime(utc.time().hour(), utc.time().minute(), 0));
     struct tm value {};
     value.tm_year = utc.date().year() - 1900;
     value.tm_mon = utc.date().month() - 1;
     value.tm_mday = utc.date().day();
     value.tm_hour = utc.time().hour();
     value.tm_min = utc.time().minute();
-    value.tm_sec = utc.time().second();
+    value.tm_sec = 0;
     value.tm_isdst = -1;
     return value;
 }
 
 } // namespace
+
+QString profileGenericErrorText(int errorCode)
+{
+    const char *message = CGXDLMSConverter::GetErrorMessage(errorCode);
+    if (!message || !message[0])
+        return QString::number(errorCode);
+    return QString::fromUtf8(message);
+}
 
 int GXDLMSCommunicator::readProfileGenericColumns(CGXDLMSObject *object)
 {
@@ -550,8 +560,8 @@ int GXDLMSCommunicator::readProfileGenericByRange(CGXDLMSObject *object, const Q
     if (ret != 0)
         return ret;
 
-    struct tm startTm = qDateTimeToTm(start);
-    struct tm endTm = qDateTimeToTm(end);
+    struct tm startTm = qDateTimeToProfileRangeTm(start);
+    struct tm endTm = qDateTimeToProfileRangeTm(end);
 
     std::vector<CGXByteBuffer> data;
     CGXReplyData reply;
@@ -749,7 +759,7 @@ void GXDLMSCommunicator::readProfileGenericByEntryFromMeter(quintptr objectPtr, 
     pgResult.errorCode = readProfileGenericByEntry(object, index, count, pgResult);
     if (pgResult.errorCode != 0) {
         pgResult.errorMessage =
-            tr("Profile Generic read failed: %1").arg(pgResult.errorCode);
+            tr("Profile Generic read failed: %1").arg(profileGenericErrorText(pgResult.errorCode));
     }
     emit profileGenericCompleted(objectPtr, pgResult);
 }
@@ -762,7 +772,11 @@ void GXDLMSCommunicator::readProfileGenericByRangeFromMeter(quintptr objectPtr, 
     pgResult.errorCode = readProfileGenericByRange(object, start, end, pgResult);
     if (pgResult.errorCode != 0) {
         pgResult.errorMessage =
-            tr("Profile Generic read failed: %1").arg(pgResult.errorCode);
+            tr("Profile Generic read failed: %1").arg(profileGenericErrorText(pgResult.errorCode));
+        if (pgResult.errorCode == DLMS_ERROR_CODE_READ_WRITE_DENIED)
+            pgResult.errorMessage += QLatin1Char('\n')
+                                     + tr("This meter may not allow reading by date range. "
+                                          "Try mode \"By entry\" instead.");
     }
     emit profileGenericCompleted(objectPtr, pgResult);
 }

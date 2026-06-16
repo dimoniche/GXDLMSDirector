@@ -278,9 +278,8 @@ void GXDLMSDevice::handleProfileGenericFinished(quintptr objectPtr, const Profil
 {
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     setState(m_state & ~DeviceStates(DeviceState::Reading));
-    if (result.errorCode == 0)
-        emit profileGenericRead(object, result);
-    else
+    emit profileGenericRead(object, result);
+    if (result.errorCode != 0)
         emit errorOccurred(result.errorMessage);
 }
 

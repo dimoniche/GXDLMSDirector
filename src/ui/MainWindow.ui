@@ -170,6 +170,32 @@
           </widget>
          </item>
          <item>
+          <widget class="QGroupBox" name="profileGenericGroup">
+           <property name="title">
+            <string>Profile Generic</string>
+           </property>
+           <layout class="QHBoxLayout" name="profileGenericLayout">
+            <item>
+             <widget class="QLabel" name="profileGenericHintLabel">
+              <property name="text">
+               <string>Buffer (attr 2) is read with selective access by entry or date range.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="readProfileGenericButton">
+              <property name="text">
+               <string>Read buffer...</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
           <widget class="QTabWidget" name="objectEditorTabs">
            <property name="currentIndex">
             <number>0</number>
@@ -368,6 +394,8 @@
     <addaction name="actionAddObject"/>
     <addaction name="actionDeleteObject"/>
     <addaction name="actionEditOctetString"/>
+    <addaction name="separator"/>
+    <addaction name="actionReadProfileGeneric"/>
    </widget>
    <widget class="QMenu" name="menuConnection">
     <property name="title">
@@ -606,6 +634,9 @@
   <action name="actionReadProfileGeneric">
    <property name="text">
     <string>Read Profile Generic...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+G</string>
    </property>
    <property name="enabled">
     <bool>false</bool>
