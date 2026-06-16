@@ -78,12 +78,14 @@ private slots:
     void onObjectWritten(CGXDLMSObject *object, int attributeIndex, const QString &value);
     void onMethodInvoked(CGXDLMSObject *object, int methodIndex);
     void onObjectTreeClicked(const QModelIndex &index);
+    void onObjectListClicked(const QModelIndex &index);
+    void onGroupByTypeToggled(bool checked);
     void onPropertyTableChanged(QTableWidgetItem *item);
     void onRecentFilesAboutToShow();
     void onProjectDirtyChanged(bool dirty);
 
 private:
-    enum class TreeItemKind { DeviceNode = 1, ObjectNode = 2 };
+    enum class TreeItemKind { DeviceNode = 1, ObjectNode = 2, TypeGroupNode = 3 };
 
     GXDLMSDevice *activeDevice();
     const GXDLMSDevice *activeDevice() const;
@@ -101,6 +103,9 @@ private:
     void appendTrace(const QString &message);
     void appendNotification(const QString &message);
     void rebuildObjectTree();
+    void rebuildObjectList();
+    void rebuildNavigationViews();
+    void syncListSelection(int deviceIndex, CGXDLMSObject *object);
     void updatePropertyTable(CGXDLMSObject *object);
     void updateMethodsTable(CGXDLMSObject *object);
     void updateObjectEditors(CGXDLMSObject *object);
@@ -123,6 +128,7 @@ private:
     GXDLMSProject m_project;
     QList<QMetaObject::Connection> m_deviceConnections;
     QStandardItemModel *m_treeModel = nullptr;
+    QStandardItemModel *m_listModel = nullptr;
     PropertyTableDelegate *m_propertyDelegate = nullptr;
     CGXDLMSObject *m_selectedObject = nullptr;
     MacroEditorDialog *m_macroEditor = nullptr;
@@ -134,4 +140,6 @@ private:
     QString m_findLogicalName;
     int m_lastFoundDeviceIndex = -1;
     int m_lastFoundObjectRow = -1;
+    bool m_groupByType = true;
+    bool m_syncingSelection = false;
 };

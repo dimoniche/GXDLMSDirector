@@ -20,10 +20,62 @@
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QTreeView" name="objectTree">
-       <property name="headerHidden">
-        <bool>true</bool>
+      <widget class="QTabWidget" name="navigationTabs">
+       <property name="currentIndex">
+        <number>0</number>
        </property>
+       <widget class="QWidget" name="objectTreeTab">
+        <attribute name="title">
+         <string>Tree</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="objectTreeTabLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QTreeView" name="objectTree">
+           <property name="headerHidden">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="objectListTab">
+        <attribute name="title">
+         <string>Object List</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="objectListTabLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QTreeView" name="objectList">
+           <property name="headerHidden">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
       </widget>
        <widget class="QSplitter" name="rightSplitter">
        <property name="orientation">
@@ -259,6 +311,8 @@
     <addaction name="actionTraceTimestamps"/>
     <addaction name="separator"/>
     <addaction name="actionClearTrace"/>
+    <addaction name="separator"/>
+    <addaction name="actionGroupByType"/>
    </widget>
    <widget class="QMenu" name="menuNotifications">
     <property name="title">
@@ -642,6 +696,20 @@
   <action name="actionClearTrace">
    <property name="text">
     <string>Clear trace</string>
+   </property>
+  </action>
+  <action name="actionGroupByType">
+   <property name="text">
+    <string>Groups</string>
+   </property>
+   <property name="toolTip">
+    <string>Group object list by object type.</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionStartNotifications">

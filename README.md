@@ -64,6 +64,7 @@ open GXDLMSDirector.app          # macOS
 - **Multi-device projects** — несколько счётчиков в одном `.gxc`
 - **Recent projects** — MRU в меню File
 - **Find / Find Next** — поиск COSEM-объектов в дереве (Ctrl+F / F3)
+- **Groups** — группировка объектов по типу COSEM (View → Groups), вкладки Tree / Object List
 - **Clone device** — копия настроек и объектов
 - **Save/Load values** — экспорт/импорт `.objects.xml`
 - Асинхронные операции (не блокируют UI)
