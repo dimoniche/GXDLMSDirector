@@ -42,7 +42,7 @@ GXDLMSDevice::GXDLMSDevice(QObject *parent)
                     else
                         emit errorOccurred(tr("Read failed: %1").arg(result.errorCode));
                 }
-                setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
+                setState(m_state & ~DeviceStates(DeviceState::Reading));
             });
     connect(m_communicator.get(), &GXDLMSCommunicator::readAttributeCompleted, this,
             [this](const ReadResult &result) {
@@ -114,6 +114,24 @@ void GXDLMSDevice::readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll)
     setState(m_state | DeviceState::Reading);
     QMetaObject::invokeMethod(m_communicator.get(), "readSelectedFromMeter", Qt::QueuedConnection,
                               Q_ARG(quintptr, reinterpret_cast<quintptr>(object)),
+                              Q_ARG(bool, forceAll));
+}
+
+void GXDLMSDevice::readObjectsAsync(const QList<CGXDLMSObject *> &objects, bool forceAll)
+{
+    if (!(m_state & DeviceState::Connected) || objects.isEmpty())
+        return;
+
+    m_cancelRequested = false;
+    setState(m_state | DeviceState::Reading);
+
+    QList<quintptr> objectPtrs;
+    objectPtrs.reserve(objects.size());
+    for (CGXDLMSObject *object : objects)
+        objectPtrs.append(reinterpret_cast<quintptr>(object));
+
+    QMetaObject::invokeMethod(m_communicator.get(), "readObjectsFromMeter", Qt::QueuedConnection,
+                              Q_ARG(QList<quintptr>, objectPtrs),
                               Q_ARG(bool, forceAll));
 }
 
@@ -191,7 +209,7 @@ void GXDLMSDevice::handleDisconnectionFinished()
 void GXDLMSDevice::handleObjectReadFinished(CGXDLMSObject *object, int attributeIndex,
                                             const QString &value, int ret)
 {
-    setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
+    setState(m_state & ~DeviceStates(DeviceState::Reading));
     if (ret == 0)
         emit objectRead(object, attributeIndex, value);
     else
@@ -201,7 +219,7 @@ void GXDLMSDevice::handleObjectReadFinished(CGXDLMSObject *object, int attribute
 void GXDLMSDevice::handleObjectWriteFinished(CGXDLMSObject *object, int attributeIndex,
                                              const QString &value, int ret)
 {
-    setState((m_state & ~DeviceStates(DeviceState::Writing)) | DeviceState::Connected);
+    setState(m_state & ~DeviceStates(DeviceState::Writing));
     if (ret == 0)
         emit objectWritten(object, attributeIndex, value);
     else
@@ -210,7 +228,7 @@ void GXDLMSDevice::handleObjectWriteFinished(CGXDLMSObject *object, int attribut
 
 void GXDLMSDevice::handleMethodInvokeFinished(CGXDLMSObject *object, int methodIndex, int ret)
 {
-    setState((m_state & ~DeviceStates(DeviceState::Writing)) | DeviceState::Connected);
+    setState(m_state & ~DeviceStates(DeviceState::Writing));
     if (ret == 0)
         emit methodInvoked(object, methodIndex);
     else
@@ -247,7 +265,7 @@ void GXDLMSDevice::readProfileGenericByRangeAsync(CGXDLMSObject *object, const Q
 void GXDLMSDevice::handleProfileGenericFinished(quintptr objectPtr, const ProfileGenericResult &result)
 {
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
-    setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
+    setState(m_state & ~DeviceStates(DeviceState::Reading));
     if (result.errorCode == 0)
         emit profileGenericRead(object, result);
     else
@@ -262,7 +280,7 @@ void GXDLMSDevice::handleReadAllFinished(const QList<ReadResult> &results)
     }
 
     const bool cancelled = m_cancelRequested.exchange(false);
-    setState((m_state & ~DeviceStates(DeviceState::Reading)) | DeviceState::Connected);
+    setState(m_state & ~DeviceStates(DeviceState::Reading));
     emit readAllFinished();
     if (cancelled)
         emit traceMessage(tr("Operation cancelled."));

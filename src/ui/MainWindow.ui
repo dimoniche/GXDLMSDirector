@@ -226,23 +226,23 @@
                  <property name="text">
                   <string>Parameter</string>
                  </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLineEdit" name="methodParamEdit"/>
-               </item>
-               <item>
-                <widget class="QPushButton" name="invokeMethodButton">
-                 <property name="text">
-                  <string>Invoke</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-            </layout>
-           </widget>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="methodParamEdit"/>
+              </item>
+              <item>
+               <widget class="QPushButton" name="invokeMethodButton">
+                <property name="text">
+                 <string>Invoke</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
           </widget>
+         </widget>
          </item>
         </layout>
        </widget>
@@ -375,6 +375,7 @@
     </property>
     <addaction name="actionConnect"/>
     <addaction name="actionDisconnect"/>
+    <addaction name="actionRead"/>
     <addaction name="actionReadAll"/>
     <addaction name="actionReadObject"/>
     <addaction name="actionWriteObject"/>
@@ -435,6 +436,7 @@
    </attribute>
    <addaction name="actionConnect"/>
    <addaction name="actionDisconnect"/>
+   <addaction name="actionRead"/>
    <addaction name="actionReadAll"/>
    <addaction name="actionReadObject"/>
    <addaction name="actionWriteObject"/>
@@ -465,6 +467,20 @@
   <action name="actionReadObject">
    <property name="text">
     <string>Read Object</string>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionRead">
+   <property name="text">
+    <string>Read</string>
+   </property>
+   <property name="toolTip">
+    <string>Read selected item.</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
    </property>
    <property name="enabled">
     <bool>false</bool>

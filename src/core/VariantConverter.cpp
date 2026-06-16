@@ -4,8 +4,11 @@
 
 #include <GXDLMSObject.h>
 #include <GXDLMSVariant.h>
+#include <GXDLMSValueEventArg.h>
+#include <GXDLMSSettings.h>
 #include <GXDateTime.h>
 #include <GXHelpers.h>
+#include <errorcodes.h>
 #include <enums.h>
 
 #include <QDateTime>
@@ -124,6 +127,25 @@ QString toString(CGXDLMSObject *object, int attributeIndex, const CGXDLMSVariant
     if (type == DLMS_DATA_TYPE_BOOLEAN)
         return copy.boolVal ? QStringLiteral("true") : QStringLiteral("false");
     return QString::fromStdString(copy.ToString());
+}
+
+QString attributeDisplayValue(CGXDLMSObject *object, int attributeIndex)
+{
+    if (!object || attributeIndex <= 0)
+        return {};
+
+    CGXDLMSSettings settings(false);
+    CGXDLMSValueEventArg event(object, attributeIndex);
+    if (object->GetValue(settings, event) == DLMS_ERROR_CODE_OK && event.GetError() == DLMS_ERROR_CODE_OK)
+        return toString(object, attributeIndex, event.GetValue());
+
+    std::vector<std::string> values;
+    object->GetValues(values);
+    const size_t index = static_cast<size_t>(attributeIndex - 1);
+    if (index < values.size())
+        return QString::fromStdString(values.at(index));
+
+    return {};
 }
 
 QString dataTypeLabel(CGXDLMSObject *object, int attributeIndex)

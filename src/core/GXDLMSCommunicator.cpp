@@ -568,6 +568,28 @@ QList<ReadResult> GXDLMSCommunicator::readObjectAttributes(CGXDLMSObject *object
     return results;
 }
 
+QList<ReadResult> GXDLMSCommunicator::readObjects(const QList<CGXDLMSObject *> &objects, bool forceAll,
+                                                  std::atomic<bool> *cancelFlag)
+{
+    QList<ReadResult> results;
+    int current = 0;
+    const int total = objects.size();
+
+    for (CGXDLMSObject *object : objects) {
+        if (cancelFlag && cancelFlag->load())
+            break;
+
+        if (total > 1)
+            emit progressChanged(tr("Reading..."), current, total);
+        ++current;
+
+        for (const ReadResult &partial : readObjectAttributes(object, forceAll, cancelFlag))
+            results.append(partial);
+    }
+
+    return results;
+}
+
 void GXDLMSCommunicator::connectToMeter()
 {
     int ret = syncConnect();
@@ -608,6 +630,17 @@ void GXDLMSCommunicator::readSelectedFromMeter(quintptr objectPtr, bool forceAll
     m_cancelFlag = m_device ? &m_device->cancelFlag() : nullptr;
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     emit readSelectedCompleted(readObjectAttributes(object, forceAll, m_cancelFlag));
+}
+
+void GXDLMSCommunicator::readObjectsFromMeter(const QList<quintptr> &objectPtrs, bool forceAll)
+{
+    m_cancelFlag = m_device ? &m_device->cancelFlag() : nullptr;
+    QList<CGXDLMSObject *> objects;
+    objects.reserve(objectPtrs.size());
+    for (quintptr objectPtr : objectPtrs)
+        objects.append(reinterpret_cast<CGXDLMSObject *>(objectPtr));
+
+    emit readSelectedCompleted(readObjects(objects, forceAll, m_cancelFlag));
 }
 
 void GXDLMSCommunicator::readAttributeFromMeter(quintptr objectPtr, int attributeIndex)

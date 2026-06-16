@@ -46,6 +46,7 @@ private slots:
     void onConnect();
     void onDisconnect();
     void onReadAll();
+    void onReadSelected();
     void onReadObject();
     void onWriteObject();
     void onInvokeMethod();
@@ -80,6 +81,8 @@ private slots:
     void onObjectTreeClicked(const QModelIndex &index);
     void onObjectListClicked(const QModelIndex &index);
     void onGroupByTypeToggled(bool checked);
+    void showObjectTreeContextMenu(const QPoint &pos);
+    void showObjectListContextMenu(const QPoint &pos);
     void onPropertyTableChanged(QTableWidgetItem *item);
     void onRecentFilesAboutToShow();
     void onProjectDirtyChanged(bool dirty);
@@ -106,7 +109,9 @@ private:
     void rebuildObjectList();
     void rebuildNavigationViews();
     void syncListSelection(int deviceIndex, CGXDLMSObject *object);
+    void restoreNavigationSelection();
     void updatePropertyTable(CGXDLMSObject *object);
+    void refreshObjectValueDisplays(CGXDLMSObject *object, int attributeIndex, const QString &value);
     void updateMethodsTable(CGXDLMSObject *object);
     void updateObjectEditors(CGXDLMSObject *object);
     void updateDisconnectControlPanel(CGXDLMSObject *object);
@@ -114,6 +119,9 @@ private:
     bool findObject(bool fromStart);
     bool objectMatchesSearch(CGXDLMSObject *object, const QString &searchText, const QString &logicalName) const;
     void selectTreeObject(int deviceIndex, CGXDLMSObject *object);
+    bool gatherReadTargets(int &deviceIndex, QVector<CGXDLMSObject *> &objects) const;
+    bool hasReadableSelection() const;
+    void startReadForObjects(int deviceIndex, const QVector<CGXDLMSObject *> &objects);
     int selectedAttributeIndex() const;
     int selectedMethodIndex() const;
     bool isProfileGenericSelected() const;

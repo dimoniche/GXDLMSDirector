@@ -5,12 +5,12 @@
 
 enum class DeviceState {
     None = 0x0,
-    Initialized = 1,
-    Connecting = 2,
-    Disconnecting = 3,
-    Reading = 4,
-    Writing = 5,
-    Connected = 0x10
+    Initialized = 0x01,
+    Connecting = 0x02,
+    Disconnecting = 0x04,
+    Reading = 0x08,
+    Writing = 0x10,
+    Connected = 0x20
 };
 
 Q_DECLARE_FLAGS(DeviceStates, DeviceState)

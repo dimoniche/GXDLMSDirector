@@ -45,6 +45,8 @@ public:
     int getAssociationView();
     QList<ReadResult> readAll(bool forceAll, std::atomic<bool> *cancelFlag);
     QList<ReadResult> readObjectAttributes(CGXDLMSObject *object, bool forceAll, std::atomic<bool> *cancelFlag);
+    QList<ReadResult> readObjects(const QList<CGXDLMSObject *> &objects, bool forceAll,
+                                  std::atomic<bool> *cancelFlag);
 
     int readProfileGenericColumns(CGXDLMSObject *object);
     int readProfileGenericByEntry(CGXDLMSObject *object, int index, int count, ProfileGenericResult &result);
@@ -62,6 +64,7 @@ public slots:
     void disconnectFromMeter();
     void readAllFromMeter(bool forceRead);
     void readSelectedFromMeter(quintptr objectPtr, bool forceAll);
+    void readObjectsFromMeter(const QList<quintptr> &objectPtrs, bool forceAll);
     void readAttributeFromMeter(quintptr objectPtr, int attributeIndex);
     void writeAttributeToMeter(quintptr objectPtr, int attributeIndex, const QString &value);
     void invokeMethodOnMeter(quintptr objectPtr, int methodIndex, const QString &parameter);

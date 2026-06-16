@@ -37,11 +37,14 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QDir>
+#include <QItemSelectionModel>
+#include <QVariant>
 #include <QHash>
 #include <QHeaderView>
 #include <QMenu>
 #include <QMessageBox>
 #include <QSettings>
+#include <QSet>
 #include <QStandardItem>
 #include <QUrl>
 
@@ -78,7 +81,7 @@ void setTreeItemData(QStandardItem *item, int kind, int deviceIndex, CGXDLMSObje
     item->setData(kind, KindRole);
     item->setData(deviceIndex, DeviceIndexRole);
     if (object)
-        item->setData(static_cast<quintptr>(reinterpret_cast<quintptr>(object)), Qt::UserRole);
+        item->setData(QVariant::fromValue(object), Qt::UserRole);
 }
 
 QStandardItem *findObjectItemRecursive(QStandardItem *parent, CGXDLMSObject *object)
@@ -93,7 +96,7 @@ QStandardItem *findObjectItemRecursive(QStandardItem *parent, CGXDLMSObject *obj
 
         const int kind = child->data(KindRole).toInt();
         if (kind == ObjectNodeKind) {
-            auto *itemObject = reinterpret_cast<CGXDLMSObject *>(child->data(Qt::UserRole).value<quintptr>());
+            auto *itemObject = qvariant_cast<CGXDLMSObject *>(child->data(Qt::UserRole));
             if (itemObject == object)
                 return child;
         } else if (QStandardItem *found = findObjectItemRecursive(child, object)) {
@@ -123,7 +126,7 @@ QStandardItem *findObjectItemInModel(QStandardItemModel *model, int deviceIndex,
         } else if (kind == ObjectNodeKind) {
             if (rootItem->data(DeviceIndexRole).toInt() != deviceIndex)
                 continue;
-            auto *itemObject = reinterpret_cast<CGXDLMSObject *>(rootItem->data(Qt::UserRole).value<quintptr>());
+            auto *itemObject = qvariant_cast<CGXDLMSObject *>(rootItem->data(Qt::UserRole));
             if (itemObject == object)
                 return rootItem;
         } else if (kind == TypeGroupNodeKind) {
@@ -150,6 +153,58 @@ int deviceIndexForObject(GXDLMSProject &project, CGXDLMSObject *object)
 
     return -1;
 }
+
+int deviceIndexForObject(const GXDLMSProject &project, CGXDLMSObject *object)
+{
+    return deviceIndexForObject(const_cast<GXDLMSProject &>(project), object);
+}
+
+void collectObjectsFromItem(QStandardItem *item, int &deviceIndex, QSet<CGXDLMSObject *> &objects)
+{
+    if (!item)
+        return;
+
+    const int kind = item->data(KindRole).toInt();
+    if (kind == ObjectNodeKind) {
+        auto *object = qvariant_cast<CGXDLMSObject *>(item->data(Qt::UserRole));
+        if (!object)
+            return;
+
+        if (deviceIndex < 0)
+            deviceIndex = item->data(DeviceIndexRole).toInt();
+        objects.insert(object);
+        return;
+    }
+
+    if (kind == DeviceNodeKind)
+        deviceIndex = item->data(DeviceIndexRole).toInt();
+    else if (kind == TypeGroupNodeKind && deviceIndex < 0)
+        deviceIndex = item->data(DeviceIndexRole).toInt();
+
+    for (int row = 0; row < item->rowCount(); ++row)
+        collectObjectsFromItem(item->child(row), deviceIndex, objects);
+}
+
+int deviceObjectCount(GXDLMSDevice *device)
+{
+    if (!device)
+        return 0;
+
+    return static_cast<int>(std::distance(device->objects().begin(), device->objects().end()));
+}
+
+void stylePropertyTableItem(QTableWidget *table, QTableWidgetItem *item, bool writable)
+{
+    if (writable) {
+        item->setBackground(QColor(255, 255, 200));
+        item->setForeground(QColor(0, 0, 0));
+        return;
+    }
+
+    item->setData(Qt::BackgroundRole, QVariant());
+    item->setData(Qt::ForegroundRole, QVariant());
+    item->setForeground(table->palette().color(QPalette::Text));
+}
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent)
@@ -166,6 +221,9 @@ MainWindow::MainWindow(QWidget *parent)
     QSettings settings;
     m_groupByType = settings.value(QStringLiteral("ViewGroups"), true).toBool();
     ui->actionGroupByType->setChecked(m_groupByType);
+    ui->objectTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->objectList->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->objectList->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->propertyTable->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     ui->propertyTable->horizontalHeader()->setStretchLastSection(true);
     ui->methodsTable->horizontalHeader()->setStretchLastSection(true);
@@ -260,6 +318,7 @@ void MainWindow::setupConnections()
     connect(ui->actionConnect, &QAction::triggered, this, &MainWindow::onConnect);
     connect(ui->actionDisconnect, &QAction::triggered, this, &MainWindow::onDisconnect);
     connect(ui->actionReadAll, &QAction::triggered, this, &MainWindow::onReadAll);
+    connect(ui->actionRead, &QAction::triggered, this, &MainWindow::onReadSelected);
     connect(ui->actionReadObject, &QAction::triggered, this, &MainWindow::onReadObject);
     connect(ui->actionWriteObject, &QAction::triggered, this, &MainWindow::onWriteObject);
     connect(ui->actionInvokeMethod, &QAction::triggered, this, &MainWindow::onInvokeMethod);
@@ -295,7 +354,11 @@ void MainWindow::setupConnections()
 
     connect(ui->objectTree, &QTreeView::clicked, this, &MainWindow::onObjectTreeClicked);
     connect(ui->objectList, &QTreeView::clicked, this, &MainWindow::onObjectListClicked);
+    connect(ui->objectTree, &QTreeView::customContextMenuRequested, this, &MainWindow::showObjectTreeContextMenu);
+    connect(ui->objectList, &QTreeView::customContextMenuRequested, this, &MainWindow::showObjectListContextMenu);
     connect(ui->actionGroupByType, &QAction::toggled, this, &MainWindow::onGroupByTypeToggled);
+    connect(ui->objectTree->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::updateActions);
+    connect(ui->objectList->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::updateActions);
     connect(ui->propertyTable, &QTableWidget::itemChanged, this, &MainWindow::onPropertyTableChanged);
     connect(ui->methodsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::updateActions);
 }
@@ -534,13 +597,67 @@ void MainWindow::onReadAll()
     activeDevice()->readAllAsync();
 }
 
+void MainWindow::onReadSelected()
+{
+    int deviceIndex = -1;
+    QVector<CGXDLMSObject *> objects;
+    if (!gatherReadTargets(deviceIndex, objects)) {
+        QMessageBox::information(this, tr("Read"),
+                                 tr("Select a device, object type group, or object in the tree or list."));
+        return;
+    }
+
+    QSet<int> deviceIndexes;
+    for (CGXDLMSObject *object : objects)
+        deviceIndexes.insert(deviceIndexForObject(m_project, object));
+
+    if (deviceIndexes.size() > 1) {
+        QMessageBox::information(this, tr("Read"),
+                                 tr("Selected objects belong to different devices. Select objects from one device."));
+        return;
+    }
+
+    if (deviceIndex < 0 && !deviceIndexes.isEmpty())
+        deviceIndex = *deviceIndexes.constBegin();
+
+    startReadForObjects(deviceIndex, objects);
+}
+
 void MainWindow::onReadObject()
 {
     if (!m_selectedObject)
         return;
 
-    appendTrace(tr("Reading object..."));
-    activeDevice()->readSelectedObjectAsync(m_selectedObject, activeDevice()->forceRead());
+    const int deviceIndex = deviceIndexForObject(m_project, m_selectedObject);
+    if (deviceIndex < 0)
+        return;
+
+    startReadForObjects(deviceIndex, {m_selectedObject});
+}
+
+void MainWindow::startReadForObjects(int deviceIndex, const QVector<CGXDLMSObject *> &objects)
+{
+    if (deviceIndex < 0 || objects.isEmpty())
+        return;
+
+    GXDLMSDevice *device = m_project.deviceAt(deviceIndex);
+    if (!device || !(device->state() & DeviceState::Connected))
+        return;
+
+    selectDevice(deviceIndex);
+    appendTrace(tr("Reading %1 object(s)...").arg(objects.size()));
+
+    if (objects.size() == static_cast<size_t>(deviceObjectCount(device))) {
+        device->readAllAsync();
+        return;
+    }
+
+    if (objects.size() == 1) {
+        device->readSelectedObjectAsync(objects.front(), device->forceRead());
+        return;
+    }
+
+    device->readObjectsAsync(QList<CGXDLMSObject *>(objects.begin(), objects.end()), device->forceRead());
 }
 
 void MainWindow::onCancel()
@@ -825,20 +942,22 @@ void MainWindow::onDeviceStateChanged(DeviceStates state)
 {
     updateActions();
 
-    if (state & DeviceState::Connected) {
-        statusBar()->showMessage(tr("Connected"));
-        if (!activeDevice()->negotiatedConformance().isEmpty()) {
-            appendTrace(tr("Negotiated conformance: %1").arg(activeDevice()->negotiatedConformance()));
-        }
-        rebuildNavigationViews();
+    if (state & DeviceState::Reading) {
+        statusBar()->showMessage(tr("Reading..."));
+    } else if (state & DeviceState::Writing) {
+        statusBar()->showMessage(tr("Writing..."));
     } else if (state & DeviceState::Connecting) {
         statusBar()->showMessage(tr("Connecting..."));
     } else if (state & DeviceState::Disconnecting) {
         statusBar()->showMessage(tr("Disconnecting..."));
-    } else if (state & DeviceState::Writing) {
-        statusBar()->showMessage(tr("Writing..."));
-    } else if (state & DeviceState::Reading) {
-        statusBar()->showMessage(tr("Reading..."));
+    } else if (state & DeviceState::Connected) {
+        statusBar()->showMessage(tr("Connected"));
+        if (!activeDevice()->negotiatedConformance().isEmpty()) {
+            appendTrace(tr("Negotiated conformance: %1").arg(activeDevice()->negotiatedConformance()));
+        }
+        m_selectedObject = nullptr;
+        rebuildNavigationViews();
+        updateObjectEditors(nullptr);
     } else {
         statusBar()->showMessage(tr("Disconnected"));
         if (state == DeviceState::None)
@@ -876,11 +995,10 @@ void MainWindow::onProgressChanged(const QString &description, int current, int 
 
 void MainWindow::onObjectRead(CGXDLMSObject *object, int attributeIndex, const QString &value)
 {
-    if (object == m_selectedObject) {
-        updateObjectEditors(object);
-        if (isDisconnectControlSelected())
-            updateDisconnectControlPanel(object);
-    }
+    refreshObjectValueDisplays(object, attributeIndex, value);
+
+    if (object == m_selectedObject && isDisconnectControlSelected())
+        updateDisconnectControlPanel(object);
 
     std::string objName;
     object->GetLogicalName(objName);
@@ -892,11 +1010,10 @@ void MainWindow::onObjectRead(CGXDLMSObject *object, int attributeIndex, const Q
 
 void MainWindow::onObjectWritten(CGXDLMSObject *object, int attributeIndex, const QString &value)
 {
-    if (object == m_selectedObject) {
-        updateObjectEditors(object);
-        if (isDisconnectControlSelected())
-            updateDisconnectControlPanel(object);
-    }
+    refreshObjectValueDisplays(object, attributeIndex, value);
+
+    if (object == m_selectedObject && isDisconnectControlSelected())
+        updateDisconnectControlPanel(object);
 
     std::string objName;
     object->GetLogicalName(objName);
@@ -929,11 +1046,14 @@ void MainWindow::onObjectTreeClicked(const QModelIndex &index)
 
     if (kind == TreeItemKind::DeviceNode || kind == TreeItemKind::TypeGroupNode) {
         m_selectedObject = nullptr;
+        ui->objectEditorTabs->setCurrentWidget(ui->attributesTab);
         updateObjectEditors(nullptr);
+        updateActions();
         return;
     }
 
-    m_selectedObject = reinterpret_cast<CGXDLMSObject *>(item->data(Qt::UserRole).value<quintptr>());
+    m_selectedObject = qvariant_cast<CGXDLMSObject *>(item->data(Qt::UserRole));
+    ui->objectEditorTabs->setCurrentWidget(ui->attributesTab);
     updateObjectEditors(m_selectedObject);
 
     m_syncingSelection = true;
@@ -951,12 +1071,22 @@ void MainWindow::onObjectListClicked(const QModelIndex &index)
         return;
 
     const auto kind = static_cast<TreeItemKind>(item->data(KindRole).toInt());
-    if (kind == TreeItemKind::TypeGroupNode)
-        return;
-
     const int deviceIndex = item->data(DeviceIndexRole).toInt();
     selectDevice(deviceIndex);
-    m_selectedObject = reinterpret_cast<CGXDLMSObject *>(item->data(Qt::UserRole).value<quintptr>());
+
+    if (kind == TreeItemKind::TypeGroupNode) {
+        m_selectedObject = nullptr;
+        ui->objectEditorTabs->setCurrentWidget(ui->attributesTab);
+        updateObjectEditors(nullptr);
+        updateActions();
+        return;
+    }
+
+    if (kind != TreeItemKind::ObjectNode)
+        return;
+
+    m_selectedObject = qvariant_cast<CGXDLMSObject *>(item->data(Qt::UserRole));
+    ui->objectEditorTabs->setCurrentWidget(ui->attributesTab);
     updateObjectEditors(m_selectedObject);
 
     if (QStandardItem *treeItem = findObjectItemInModel(m_treeModel, deviceIndex, m_selectedObject)) {
@@ -995,6 +1125,7 @@ void MainWindow::updateActions()
     ui->actionConnect->setEnabled(!connected && !busy);
     ui->actionDisconnect->setEnabled(connected && !busy);
     ui->actionReadAll->setEnabled(connected && !busy);
+    ui->actionRead->setEnabled(connected && !busy);
     ui->actionReadObject->setEnabled(connected && !busy && hasSelection);
     ui->actionWriteObject->setEnabled(connected && !busy && hasSelection);
     ui->actionCancel->setEnabled(busy);
@@ -1100,8 +1231,42 @@ void MainWindow::appendNotification(const QString &message)
 
 void MainWindow::rebuildNavigationViews()
 {
+    CGXDLMSObject *selected = m_selectedObject;
+    int selectedDeviceIndex = -1;
+    if (selected)
+        selectedDeviceIndex = deviceIndexForObject(m_project, selected);
+
     rebuildObjectTree();
     rebuildObjectList();
+
+    bool restoredSelection = false;
+    if (selected && selectedDeviceIndex >= 0) {
+        for (auto *object : m_project.deviceAt(selectedDeviceIndex)->objects()) {
+            if (object != selected)
+                continue;
+            selectTreeObject(selectedDeviceIndex, selected);
+            restoredSelection = true;
+            break;
+        }
+    }
+
+    if (!restoredSelection) {
+        m_selectedObject = nullptr;
+        restoreNavigationSelection();
+        updateObjectEditors(nullptr);
+    }
+
+    updateActions();
+}
+
+void MainWindow::restoreNavigationSelection()
+{
+    if (m_treeModel->rowCount() <= 0)
+        return;
+
+    const QModelIndex index = m_treeModel->index(0, 0);
+    ui->objectTree->setCurrentIndex(index);
+    onObjectTreeClicked(index);
 }
 
 void MainWindow::rebuildObjectTree()
@@ -1252,6 +1417,26 @@ void MainWindow::updateObjectEditors(CGXDLMSObject *object)
     updateActions();
 }
 
+void MainWindow::refreshObjectValueDisplays(CGXDLMSObject *object, int attributeIndex, const QString &value)
+{
+    if (!object || attributeIndex <= 0 || object != m_selectedObject)
+        return;
+
+    QString display = value;
+    if (display.isEmpty())
+        display = VariantConverter::attributeDisplayValue(object, attributeIndex);
+
+    const int row = attributeIndex - 1;
+    if (row >= 0 && row < ui->propertyTable->rowCount()) {
+        if (auto *item = ui->propertyTable->item(row, 2)) {
+            item->setText(display);
+            if (m_selectedObject)
+                stylePropertyTableItem(ui->propertyTable, item,
+                                       VariantConverter::isWritable(m_selectedObject, attributeIndex));
+        }
+    }
+}
+
 void MainWindow::updateDisconnectControlPanel(CGXDLMSObject *object)
 {
     if (!object || object->GetObjectType() != DLMS_OBJECT_TYPE_DISCONNECT_CONTROL) {
@@ -1285,21 +1470,20 @@ void MainWindow::updatePropertyTable(CGXDLMSObject *object)
 
         auto *nameItem = new QTableWidgetItem(attrLabel);
         nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
+        nameItem->setForeground(ui->propertyTable->palette().color(QPalette::Text));
         ui->propertyTable->setItem(i, 0, nameItem);
 
         auto *typeItem = new QTableWidgetItem(VariantConverter::dataTypeLabel(object, index));
         typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
+        typeItem->setForeground(ui->propertyTable->palette().color(QPalette::Text));
         ui->propertyTable->setItem(i, 1, typeItem);
 
-        std::vector<std::string> values;
-        object->GetValues(values);
         auto *valueItem = new QTableWidgetItem();
-        if (index - 1 < static_cast<int>(values.size()))
-            valueItem->setText(QString::fromStdString(values.at(static_cast<size_t>(index - 1))));
+        valueItem->setText(VariantConverter::attributeDisplayValue(object, index));
 
-        if (VariantConverter::isWritable(object, index))
-            valueItem->setBackground(QColor(255, 255, 220));
-        else
+        const bool writable = VariantConverter::isWritable(object, index);
+        stylePropertyTableItem(ui->propertyTable, valueItem, writable);
+        if (!writable)
             valueItem->setFlags(valueItem->flags() & ~Qt::ItemIsEditable);
 
         ui->propertyTable->setItem(i, 2, valueItem);
@@ -1395,6 +1579,8 @@ void MainWindow::bindActiveDevice()
     }));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::readAllFinished, this, [this]() {
         statusBar()->showMessage(tr("Read all completed."), 3000);
+        if (m_selectedObject)
+            updatePropertyTable(m_selectedObject);
     }));
 }
 
@@ -1486,4 +1672,125 @@ void MainWindow::selectTreeObject(int deviceIndex, CGXDLMSObject *object)
         ui->navigationTabs->setCurrentWidget(ui->objectTreeTab);
         onObjectTreeClicked(index);
     }
+}
+
+bool MainWindow::gatherReadTargets(int &deviceIndex, QVector<CGXDLMSObject *> &objects) const
+{
+    objects.clear();
+    deviceIndex = -1;
+    QSet<CGXDLMSObject *> uniqueObjects;
+
+    const auto gatherFromView = [&](QTreeView *view, QStandardItemModel *model) {
+        const QItemSelectionModel *selectionModel = view->selectionModel();
+        if (!selectionModel || !selectionModel->hasSelection())
+            return;
+
+        for (const QModelIndex &index : selectionModel->selectedIndexes()) {
+            if (index.column() != 0)
+                continue;
+            collectObjectsFromItem(model->itemFromIndex(index), deviceIndex, uniqueObjects);
+        }
+    };
+
+    const QWidget *currentTab = ui->navigationTabs->currentWidget();
+    if (currentTab == ui->objectListTab) {
+        gatherFromView(ui->objectList, m_listModel);
+        if (uniqueObjects.isEmpty())
+            gatherFromView(ui->objectTree, m_treeModel);
+    } else {
+        gatherFromView(ui->objectTree, m_treeModel);
+        if (uniqueObjects.isEmpty())
+            gatherFromView(ui->objectList, m_listModel);
+    }
+
+    if (uniqueObjects.isEmpty() && m_selectedObject)
+        uniqueObjects.insert(m_selectedObject);
+
+    if (uniqueObjects.isEmpty())
+        return false;
+
+    if (deviceIndex < 0) {
+        for (CGXDLMSObject *object : std::as_const(uniqueObjects)) {
+            deviceIndex = deviceIndexForObject(m_project, object);
+            if (deviceIndex >= 0)
+                break;
+        }
+    }
+
+    objects = QVector<CGXDLMSObject *>(uniqueObjects.cbegin(), uniqueObjects.cend());
+    return true;
+}
+
+bool MainWindow::hasReadableSelection() const
+{
+    int deviceIndex = -1;
+    QVector<CGXDLMSObject *> objects;
+    return gatherReadTargets(deviceIndex, objects);
+}
+
+void MainWindow::showObjectTreeContextMenu(const QPoint &pos)
+{
+    const QModelIndex index = ui->objectTree->indexAt(pos);
+    if (!index.isValid())
+        return;
+
+    ui->objectTree->setCurrentIndex(index);
+    onObjectTreeClicked(index);
+    updateActions();
+
+    auto *item = m_treeModel->itemFromIndex(index);
+    if (!item)
+        return;
+
+    const auto kind = static_cast<TreeItemKind>(item->data(KindRole).toInt());
+    QMenu menu(this);
+
+    if (kind == TreeItemKind::DeviceNode) {
+        menu.addAction(ui->actionConnect);
+        menu.addAction(ui->actionDisconnect);
+        menu.addSeparator();
+    }
+
+    menu.addAction(ui->actionRead);
+    if (kind == TreeItemKind::ObjectNode) {
+        menu.addAction(ui->actionReadObject);
+        menu.addSeparator();
+        menu.addAction(ui->actionDeleteObject);
+    }
+
+    menu.exec(ui->objectTree->viewport()->mapToGlobal(pos));
+}
+
+void MainWindow::showObjectListContextMenu(const QPoint &pos)
+{
+    const QModelIndex index = ui->objectList->indexAt(pos);
+    if (!index.isValid())
+        return;
+
+    QItemSelectionModel *selectionModel = ui->objectList->selectionModel();
+    if (!selectionModel->isSelected(index))
+        ui->objectList->setCurrentIndex(index);
+
+    if (auto *item = m_listModel->itemFromIndex(index)) {
+        const auto kind = static_cast<TreeItemKind>(item->data(KindRole).toInt());
+        if (kind == TreeItemKind::ObjectNode)
+            onObjectListClicked(index);
+    }
+    updateActions();
+
+    auto *item = m_listModel->itemFromIndex(index);
+    if (!item)
+        return;
+
+    const auto kind = static_cast<TreeItemKind>(item->data(KindRole).toInt());
+    QMenu menu(this);
+    menu.addAction(ui->actionRead);
+
+    if (kind == TreeItemKind::ObjectNode) {
+        menu.addAction(ui->actionReadObject);
+        menu.addSeparator();
+        menu.addAction(ui->actionDeleteObject);
+    }
+
+    menu.exec(ui->objectList->viewport()->mapToGlobal(pos));
 }

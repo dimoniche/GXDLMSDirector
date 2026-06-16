@@ -111,6 +111,7 @@ public:
     void readAllAsync();
     void readObjectAsync(CGXDLMSObject *object, int attributeIndex);
     void readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll);
+    void readObjectsAsync(const QList<CGXDLMSObject *> &objects, bool forceAll);
     void writeObjectAsync(CGXDLMSObject *object, int attributeIndex, const QString &value);
     void invokeMethodAsync(CGXDLMSObject *object, int methodIndex, const QString &parameter);
     void readProfileGenericByEntryAsync(CGXDLMSObject *object, int index, int count);

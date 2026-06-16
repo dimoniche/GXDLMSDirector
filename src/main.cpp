@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<DeviceStates>("DeviceStates");
     qRegisterMetaType<ReadResult>("ReadResult");
     qRegisterMetaType<QList<ReadResult>>("QList<ReadResult>");
+    qRegisterMetaType<QList<quintptr>>("QList<quintptr>");
     qRegisterMetaType<ProfileGenericResult>("ProfileGenericResult");
 
     if (!ensureSingleInstance())

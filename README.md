@@ -65,6 +65,7 @@ open GXDLMSDirector.app          # macOS
 - **Recent projects** — MRU в меню File
 - **Find / Find Next** — поиск COSEM-объектов в дереве (Ctrl+F / F3)
 - **Groups** — группировка объектов по типу COSEM (View → Groups), вкладки Tree / Object List
+- **Read selection** — чтение выбранного объекта, группы типа или устройства (Connection → Read, Ctrl+R, контекстное меню)
 - **Clone device** — копия настроек и объектов
 - **Save/Load values** — экспорт/импорт `.objects.xml`
 - Асинхронные операции (не блокируют UI)
