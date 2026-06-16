@@ -23,6 +23,8 @@
 #include "core/ValuesSerializer.h"
 #include "core/VariantConverter.h"
 
+#include <algorithm>
+
 #include <GXDLMSConverter.h>
 #include <GXDLMSObject.h>
 #include <enums.h>
@@ -726,6 +728,8 @@ void MainWindow::onDeviceStateChanged(DeviceStates state)
         statusBar()->showMessage(tr("Reading..."));
     } else {
         statusBar()->showMessage(tr("Disconnected"));
+        if (state == DeviceState::None)
+            rebuildObjectTree();
     }
 }
 
@@ -952,11 +956,24 @@ void MainWindow::rebuildObjectTree()
         deviceItem->setData(deviceIndex, DeviceIndexRole);
         m_treeModel->appendRow(deviceItem);
 
-        for (auto *obj : device->objects()) {
+        std::vector<CGXDLMSObject *> objectList(device->objects().begin(), device->objects().end());
+        std::sort(objectList.begin(), objectList.end(), [](CGXDLMSObject *a, CGXDLMSObject *b) {
+            std::string lnA;
+            std::string lnB;
+            a->GetLogicalName(lnA);
+            b->GetLogicalName(lnB);
+            return lnA < lnB;
+        });
+
+        for (auto *obj : objectList) {
             std::string logicalName;
             obj->GetLogicalName(logicalName);
-            const QString label = QString::fromUtf8(CGXDLMSConverter::ToString(obj->GetObjectType()))
-                                  + QStringLiteral(" ") + QString::fromStdString(logicalName);
+            QString label = QString::fromUtf8(CGXDLMSConverter::ToString(obj->GetObjectType()))
+                            + QStringLiteral(" ") + QString::fromStdString(logicalName);
+            const std::string &description = obj->GetDescription();
+            if (!description.empty())
+                label += QStringLiteral(" — ") + QString::fromStdString(description);
+
             auto *item = new QStandardItem(label);
             item->setData(static_cast<int>(TreeItemKind::ObjectNode), KindRole);
             item->setData(deviceIndex, DeviceIndexRole);

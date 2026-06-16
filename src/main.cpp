@@ -2,7 +2,8 @@
 
 #include <QApplication>
 #include <QDir>
-#include <QSharedMemory>
+#include <QLockFile>
+#include <QMessageBox>
 #include <QStandardPaths>
 
 #include "core/DeviceState.h"
@@ -13,8 +14,26 @@
 #include <GXDLMSObject.h>
 
 namespace {
-constexpr auto APP_ID = "GXDLMSDirector-Qt6";
+
+bool ensureSingleInstance()
+{
+    const QString lockPath =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+            .absoluteFilePath(QStringLiteral("GXDLMSDirector.lock"));
+
+    static QLockFile lockFile(lockPath);
+    lockFile.setStaleLockTime(0);
+    if (lockFile.tryLock(100))
+        return true;
+
+    QMessageBox::warning(
+        nullptr,
+        QStringLiteral("GXDLMSDirector"),
+        QObject::tr("GXDLMSDirector is already running."));
+    return false;
 }
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -29,10 +48,8 @@ int main(int argc, char *argv[])
     qRegisterMetaType<QList<ReadResult>>("QList<ReadResult>");
     qRegisterMetaType<ProfileGenericResult>("ProfileGenericResult");
 
-    QSharedMemory singleInstance(APP_ID);
-    if (!singleInstance.create(1)) {
-        return 0;
-    }
+    if (!ensureSingleInstance())
+        return 1;
 
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
                             + QStringLiteral("/GXDLMSDirector");

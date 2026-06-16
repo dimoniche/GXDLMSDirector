@@ -32,7 +32,7 @@ int MediaConnection::openSerial(const QString &portName, int baudRate,
     QMutexLocker lock(&m_mutex);
     close();
     m_type = MediaType::Serial;
-    m_serial = std::make_unique<QSerialPort>(this);
+    m_serial = std::make_unique<QSerialPort>();
     m_serial->setPortName(portName);
     m_serial->setBaudRate(baudRate);
     m_serial->setDataBits(dataBits);
@@ -51,7 +51,7 @@ int MediaConnection::openNetwork(const QString &host, quint16 port)
     QMutexLocker lock(&m_mutex);
     close();
     m_type = MediaType::Network;
-    m_socket = std::make_unique<QTcpSocket>(this);
+    m_socket = std::make_unique<QTcpSocket>();
     m_socket->connectToHost(host, port);
     if (!m_socket->waitForConnected(m_waitTimeMs)) {
         const int err = static_cast<int>(m_socket->error());
@@ -105,26 +105,22 @@ int MediaConnection::readData(QByteArray &buffer, unsigned char eop)
 {
     QMutexLocker lock(&m_mutex);
     buffer.clear();
-    if (!m_serial && !m_socket)
+    if (!m_serial)
         return DLMS_COMM_ERROR;
 
     int lastIndex = 0;
     while (true) {
-        QByteArray chunk;
-        if (m_serial) {
-            if (!m_serial->waitForReadyRead(m_waitTimeMs))
-                return DLMS_COMM_ERROR | static_cast<int>(m_serial->error());
-            chunk = m_serial->readAll();
-        } else if (m_socket) {
-            if (!m_socket->waitForReadyRead(m_waitTimeMs))
-                return DLMS_COMM_ERROR | static_cast<int>(m_socket->error());
-            chunk = m_socket->readAll();
-        }
+        if (!m_serial->waitForReadyRead(m_waitTimeMs))
+            return DLMS_COMM_ERROR | static_cast<int>(m_serial->error());
 
+        const QByteArray chunk = m_serial->readAll();
         if (chunk.isEmpty())
             return DLMS_COMM_ERROR;
 
         buffer.append(chunk);
+
+        if (buffer.size() <= 4)
+            continue;
 
         for (int pos = buffer.size() - 1; pos >= lastIndex; --pos) {
             if (static_cast<unsigned char>(buffer.at(pos)) == eop) {
@@ -134,6 +130,24 @@ int MediaConnection::readData(QByteArray &buffer, unsigned char eop)
         }
         lastIndex = buffer.size() - 1;
     }
+}
+
+int MediaConnection::readNetworkChunk(QByteArray &buffer)
+{
+    QMutexLocker lock(&m_mutex);
+    buffer.clear();
+    if (!m_socket)
+        return DLMS_COMM_ERROR;
+
+    if (!m_socket->waitForReadyRead(m_waitTimeMs))
+        return DLMS_COMM_ERROR | static_cast<int>(m_socket->error());
+
+    buffer = m_socket->readAll();
+    if (buffer.isEmpty())
+        return DLMS_COMM_ERROR;
+
+    emit traceData(QStringLiteral("RX"), buffer);
+    return 0;
 }
 
 int MediaConnection::readAvailable(QByteArray &buffer, int timeoutMs)

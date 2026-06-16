@@ -7,6 +7,7 @@
 #include <GXDLMSObjectFactory.h>
 #include <enums.h>
 
+#include <QMetaObject>
 #include <QThread>
 
 #include <memory>
@@ -88,14 +89,14 @@ MacroRunResult MacroRunner::run(GXDLMSDevice *device, const QVector<MacroStep> &
 
         switch (executed.type) {
         case MacroActionType::Connect:
-            ret = comm->initializeConnection();
-            if (ret == 0)
-                ret = comm->getAssociationView();
+            QMetaObject::invokeMethod(comm, "syncConnect", Qt::BlockingQueuedConnection,
+                                      Q_RETURN_ARG(int, ret));
             if (ret != 0)
                 executed.lastException = QString::number(ret);
             break;
         case MacroActionType::Disconnect:
-            comm->close();
+            QMetaObject::invokeMethod(comm, "syncDisconnect", Qt::BlockingQueuedConnection,
+                                      Q_RETURN_ARG(int, ret));
             break;
         case MacroActionType::Delay:
             QThread::msleep(qMax(0, executed.value.toInt()));

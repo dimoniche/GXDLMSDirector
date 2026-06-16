@@ -10,7 +10,7 @@
 #include "ProfileGenericResult.h"
 #include "ReadResult.h"
 #include <QDateTime>
-#include <QTimer>
+#include <QThread>
 #include <atomic>
 
 class CGXDLMSObject;
@@ -119,6 +119,7 @@ public:
     void cancelOperation();
     bool forceRead() const { return m_forceRead; }
     void setForceRead(bool force) { m_forceRead = force; }
+    std::atomic<bool> &cancelFlag() { return m_cancelRequested; }
 
     bool notificationsEnabled() const { return m_notificationsEnabled; }
     void setNotificationsEnabled(bool enabled);
@@ -131,9 +132,8 @@ private:
     void handleObjectReadFinished(CGXDLMSObject *object, int attributeIndex, const QString &value, int ret);
     void handleObjectWriteFinished(CGXDLMSObject *object, int attributeIndex, const QString &value, int ret);
     void handleMethodInvokeFinished(CGXDLMSObject *object, int methodIndex, int ret);
-    void handleReadAllFinished();
-    void handleProfileGenericFinished(CGXDLMSObject *object, const ProfileGenericResult &result);
-    void onNotificationPoll();
+    void handleReadAllFinished(const QList<ReadResult> &results);
+    void handleProfileGenericFinished(quintptr objectPtr, const ProfileGenericResult &result);
 
 signals:
     void stateChanged(DeviceStates state);
@@ -180,9 +180,8 @@ private:
     QString m_negotiatedConformance;
 
     std::unique_ptr<GXDLMSCommunicator> m_communicator;
+    QThread *m_ioThread = nullptr;
     std::atomic<bool> m_cancelRequested{false};
     bool m_forceRead = false;
     bool m_notificationsEnabled = false;
-    QTimer *m_notificationTimer = nullptr;
-    QByteArray m_notificationBuffer;
 };
