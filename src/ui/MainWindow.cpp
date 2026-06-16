@@ -940,6 +940,8 @@ void MainWindow::recordMacroStep(MacroActionType type, CGXDLMSObject *object, in
 
 void MainWindow::onDeviceStateChanged(DeviceStates state)
 {
+    const DeviceStates previous = m_lastDeviceState;
+    m_lastDeviceState = state;
     updateActions();
 
     if (state & DeviceState::Reading) {
@@ -952,12 +954,15 @@ void MainWindow::onDeviceStateChanged(DeviceStates state)
         statusBar()->showMessage(tr("Disconnecting..."));
     } else if (state & DeviceState::Connected) {
         statusBar()->showMessage(tr("Connected"));
-        if (!activeDevice()->negotiatedConformance().isEmpty()) {
-            appendTrace(tr("Negotiated conformance: %1").arg(activeDevice()->negotiatedConformance()));
+
+        if (!(previous & DeviceState::Connected)) {
+            if (!activeDevice()->negotiatedConformance().isEmpty()) {
+                appendTrace(tr("Negotiated conformance: %1").arg(activeDevice()->negotiatedConformance()));
+            }
+            m_selectedObject = nullptr;
+            rebuildNavigationViews();
+            updateObjectEditors(nullptr);
         }
-        m_selectedObject = nullptr;
-        rebuildNavigationViews();
-        updateObjectEditors(nullptr);
     } else {
         statusBar()->showMessage(tr("Disconnected"));
         if (state == DeviceState::None)
@@ -1264,6 +1269,14 @@ void MainWindow::restoreNavigationSelection()
     if (m_treeModel->rowCount() <= 0)
         return;
 
+    if (m_selectedObject) {
+        const int deviceIndex = deviceIndexForObject(m_project, m_selectedObject);
+        if (deviceIndex >= 0 && findObjectItemInModel(m_treeModel, deviceIndex, m_selectedObject)) {
+            selectTreeObject(deviceIndex, m_selectedObject);
+            return;
+        }
+    }
+
     const QModelIndex index = m_treeModel->index(0, 0);
     ui->objectTree->setCurrentIndex(index);
     onObjectTreeClicked(index);
@@ -1564,6 +1577,8 @@ void MainWindow::bindActiveDevice()
     if (!device)
         return;
 
+    m_lastDeviceState = DeviceState::None;
+
     m_deviceConnections.append(connect(device, &GXDLMSDevice::stateChanged, this, &MainWindow::onDeviceStateChanged));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::traceMessage, this, &MainWindow::onTraceMessage));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::traceData, this, &MainWindow::onTraceData));
@@ -1579,8 +1594,22 @@ void MainWindow::bindActiveDevice()
     }));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::readAllFinished, this, [this]() {
         statusBar()->showMessage(tr("Read all completed."), 3000);
-        if (m_selectedObject)
-            updatePropertyTable(m_selectedObject);
+        if (!m_selectedObject)
+            return;
+
+        const int deviceIndex = deviceIndexForObject(m_project, m_selectedObject);
+        if (deviceIndex >= 0) {
+            m_syncingSelection = true;
+            if (QStandardItem *item = findObjectItemInModel(m_treeModel, deviceIndex, m_selectedObject)) {
+                const QModelIndex index = m_treeModel->indexFromItem(item);
+                ui->objectTree->setCurrentIndex(index);
+                ui->objectTree->scrollTo(index);
+                syncListSelection(deviceIndex, m_selectedObject);
+            }
+            m_syncingSelection = false;
+        }
+
+        updatePropertyTable(m_selectedObject);
     }));
 }
 

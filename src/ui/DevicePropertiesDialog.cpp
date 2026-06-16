@@ -152,7 +152,6 @@ void DevicePropertiesDialog::applySettings()
 
     m_device->setName(ui->nameEdit->text());
     m_device->setManufacturer(ui->manufacturerCombo->currentData().toString());
-    m_device->applyConnectionSettings();
     m_device->setMediaType(ui->mediaTypeCombo->currentIndex() == 0 ? MediaType::Serial : MediaType::Network);
     m_device->setSerialPort(ui->serialPortCombo->currentText());
     m_device->setBaudRate(ui->baudRateCombo->currentText().toInt());
@@ -167,6 +166,7 @@ void DevicePropertiesDialog::applySettings()
     m_device->setServerAddress(static_cast<unsigned long>(ui->serverAddressSpin->value()));
     m_device->setAuthentication(ui->authCombo->currentIndex());
     m_device->setPassword(ui->passwordEdit->text());
+    m_device->applyConnectionSettings();
 }
 
 void DevicePropertiesDialog::onManufacturerChanged(int index)

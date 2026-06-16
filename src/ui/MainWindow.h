@@ -150,4 +150,5 @@ private:
     int m_lastFoundObjectRow = -1;
     bool m_groupByType = true;
     bool m_syncingSelection = false;
+    DeviceStates m_lastDeviceState = DeviceState::None;
 };

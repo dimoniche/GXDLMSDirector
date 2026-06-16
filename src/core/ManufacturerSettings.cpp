@@ -62,7 +62,9 @@ bool ManufacturerSettings::load()
         ManufacturerProfile profile;
         profile.id = item.attribute(QStringLiteral("id"));
         profile.name = item.attribute(QStringLiteral("name"), profile.id);
-        profile.useLogicalName = item.attribute(QStringLiteral("useLogicalName"), QStringLiteral("true")) == QStringLiteral("true");
+        const QString useLogicalName = item.attribute(QStringLiteral("useLogicalName"), QStringLiteral("true")).trimmed().toLower();
+        profile.useLogicalName = useLogicalName == QStringLiteral("true") || useLogicalName == QStringLiteral("1")
+                                 || useLogicalName == QStringLiteral("yes");
         profile.clientAddress = item.attribute(QStringLiteral("clientAddress"), QStringLiteral("16")).toInt();
         profile.serverAddress = item.attribute(QStringLiteral("serverAddress"), QStringLiteral("1")).toInt();
         profile.authentication = item.attribute(QStringLiteral("authentication"), QStringLiteral("0")).toInt();
