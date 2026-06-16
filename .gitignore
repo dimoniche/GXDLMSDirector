@@ -1,5 +1,8 @@
 build/
+build-release/
+build-appimage/
 cmake-build-*/
+dist/
 _upstream/
 .DS_Store
 *.user
@@ -7,3 +10,5 @@ _upstream/
 *.gxc~
 trace.txt
 LogFile.txt
+*.dmg
+*.AppImage

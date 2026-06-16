@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GXDLMSDirector
+Comment=DLMS/COSEM meter tool
+Exec=GXDLMSDirector
+Icon=GXDLMSDirector
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=GXDLMSDirector

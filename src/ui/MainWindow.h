@@ -3,6 +3,7 @@
 #include "core/GXDLMSDevice.h"
 #include "core/GXDLMSProject.h"
 #include "core/MacroStep.h"
+#include "core/ProfileGenericResult.h"
 #include "core/TraceFormatter.h"
 
 #include <QMainWindow>
@@ -64,12 +65,13 @@ private slots:
     void onStartNotifications();
     void onStopNotifications();
     void onReadProfileGeneric();
+    void onProfileGenericModeChanged(int index);
+    void onProfileGenericRead(CGXDLMSObject *object, const ProfileGenericResult &result);
     void onDlmsTranslator();
     void onHdlcAddressScanner();
     void onMacroEditor();
     void onConformanceTests();
     void onPlcDiscover();
-    void onDataConcentrators();
     void onDeviceStateChanged(DeviceStates state);
     void onTraceMessage(const QString &message);
     void onTraceData(const QString &direction, const QByteArray &data);
@@ -129,6 +131,7 @@ private:
     bool isHdlcSelected() const;
     bool isDisconnectControlSelected() const;
     bool isOctetStringSelected() const;
+    void showProfileGenericResult(const ProfileGenericResult &result);
     void recordMacroStep(MacroActionType type, CGXDLMSObject *object = nullptr, int index = 0,
                          const QString &value = {}, const QString &error = {});
 
@@ -151,4 +154,5 @@ private:
     bool m_groupByType = true;
     bool m_syncingSelection = false;
     DeviceStates m_lastDeviceState = DeviceState::None;
+    int m_bufferTabIndex = -1;
 };

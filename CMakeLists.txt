@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(GXDLMSDirector VERSION 1.0.0 LANGUAGES CXX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" GXDLMS_DIRECTOR_VERSION)
+string(STRIP "${GXDLMS_DIRECTOR_VERSION}" GXDLMS_DIRECTOR_VERSION)
+
+project(GXDLMSDirector VERSION ${GXDLMS_DIRECTOR_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +26,6 @@ set(SOURCES
     src/core/MacroSerializer.cpp
     src/core/MacroRunner.cpp
     src/core/ConformanceHelper.cpp
-    src/core/DataConcentratorManager.cpp
     src/core/ObjectAttributeNames.cpp
     src/core/CosemObjectHelper.cpp
     src/core/GXDLMSProject.cpp
@@ -64,7 +66,6 @@ set(HEADERS
     src/core/MacroSerializer.h
     src/core/MacroRunner.h
     src/core/ConformanceHelper.h
-    src/core/DataConcentratorManager.h
     src/core/ObjectAttributeNames.h
     src/core/CosemObjectHelper.h
     src/core/GXDLMSProject.h
@@ -115,13 +116,34 @@ target_include_directories(GXDLMSDirector PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_compile_definitions(GXDLMSDirector PRIVATE
+    GXDLMS_DIRECTOR_VERSION="${PROJECT_VERSION}"
+)
+
+install(FILES "${CMAKE_SOURCE_DIR}/VERSION" DESTINATION share/GXDLMSDirector)
+
 if(APPLE)
     set_target_properties(GXDLMSDirector PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_GUI_IDENTIFIER fi.gurux.GXDLMSDirector
+        MACOSX_BUNDLE_BUNDLE_NAME GXDLMSDirector
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_COPYRIGHT "Copyright (C) Gurux Ltd"
     )
     install(TARGETS GXDLMSDirector BUNDLE DESTINATION .)
 else()
+    set_target_properties(GXDLMSDirector PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../lib"
+    )
     install(TARGETS GXDLMSDirector RUNTIME DESTINATION bin)
+endif()
+
+include(cmake/Packaging.cmake)
+
+option(BUILD_TESTS "Build unit tests" OFF)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(unit_tests ${CMAKE_BINARY_DIR}/unit_tests)
 endif()

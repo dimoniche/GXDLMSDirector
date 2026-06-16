@@ -238,8 +238,7 @@ bool ProjectSerializer::load(const QString &projectPath, GXDLMSProject *project,
     }
 
     const QDomElement root = doc.documentElement();
-    if (root.tagName() != QStringLiteral("GXDLMSDirectorProject")
-        && root.tagName() != QStringLiteral("ArrayOfGXDLMSDevice")) {
+    if (root.tagName() != QStringLiteral("GXDLMSDirectorProject")) {
         if (error)
             *error = QStringLiteral("Unsupported project format");
         return false;

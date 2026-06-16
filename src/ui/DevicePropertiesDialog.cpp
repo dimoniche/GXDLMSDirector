@@ -15,6 +15,8 @@ DevicePropertiesDialog::DevicePropertiesDialog(GXDLMSDevice *device, QWidget *pa
 {
     ui->setupUi(this);
 
+    setupSecurityCombo();
+
     for (const ManufacturerProfile &profile : ManufacturerSettings::instance().profiles())
         ui->manufacturerCombo->addItem(profile.name + QStringLiteral(" (") + profile.id + QLatin1Char(')'), profile.id);
 
@@ -28,6 +30,8 @@ DevicePropertiesDialog::DevicePropertiesDialog(GXDLMSDevice *device, QWidget *pa
             this, &DevicePropertiesDialog::onManufacturerChanged);
     connect(ui->interfaceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &DevicePropertiesDialog::onInterfaceChanged);
+    connect(ui->securityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &DevicePropertiesDialog::onSecurityChanged);
     connect(ui->refreshPortsButton, &QPushButton::clicked,
             this, &DevicePropertiesDialog::refreshSerialPorts);
     connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &DevicePropertiesDialog::applySettings);
@@ -96,9 +100,25 @@ void DevicePropertiesDialog::loadFromDevice()
     ui->serverAddressSpin->setValue(static_cast<int>(m_device->serverAddress()));
     ui->authCombo->setCurrentIndex(m_device->authentication());
     ui->passwordEdit->setText(m_device->password());
+    const int securityIndex = ui->securityCombo->findData(m_device->security());
+    if (securityIndex >= 0)
+        ui->securityCombo->setCurrentIndex(securityIndex);
+    ui->authenticationKeyEdit->setText(m_device->authenticationKey());
+    ui->blockCipherKeyEdit->setText(m_device->blockCipherKey());
     ui->proposedConformanceEdit->setText(m_device->proposedConformance());
     ui->negotiatedConformanceEdit->setText(m_device->negotiatedConformance());
     updateInterfaceVisibility();
+    updateSecurityVisibility();
+}
+
+void DevicePropertiesDialog::setupSecurityCombo()
+{
+    ui->securityCombo->clear();
+    ui->securityCombo->addItem(tr("None"), DLMS_SECURITY_NONE);
+    ui->securityCombo->addItem(tr("Authentication"), DLMS_SECURITY_AUTHENTICATION);
+    ui->securityCombo->addItem(tr("Encryption"), DLMS_SECURITY_ENCRYPTION);
+    ui->securityCombo->addItem(tr("Authentication + Encryption"),
+                               DLMS_SECURITY_AUTHENTICATION_ENCRYPTION);
 }
 
 int DevicePropertiesDialog::interfaceTypeFromIndex(int index) const
@@ -134,6 +154,29 @@ void DevicePropertiesDialog::onInterfaceChanged(int /*index*/)
     updateInterfaceVisibility();
 }
 
+void DevicePropertiesDialog::onSecurityChanged(int /*index*/)
+{
+    updateSecurityVisibility();
+}
+
+void DevicePropertiesDialog::updateSecurityVisibility()
+{
+    const bool secured = ui->securityCombo->currentData().toInt() != DLMS_SECURITY_NONE;
+    ui->labelAuthenticationKey->setVisible(secured);
+    ui->authenticationKeyEdit->setVisible(secured);
+    ui->labelBlockCipherKey->setVisible(secured);
+    ui->blockCipherKeyEdit->setVisible(secured);
+}
+
+QString DevicePropertiesDialog::normalizeHexKey(const QString &text)
+{
+    QString hex = text.trimmed();
+    hex.remove(QLatin1Char(' '));
+    if (hex.startsWith(QStringLiteral("0x"), Qt::CaseInsensitive))
+        hex = hex.mid(2);
+    return hex.toUpper();
+}
+
 void DevicePropertiesDialog::updateInterfaceVisibility()
 {
     const int interfaceType = interfaceTypeFromIndex(ui->interfaceCombo->currentIndex());
@@ -166,6 +209,9 @@ void DevicePropertiesDialog::applySettings()
     m_device->setServerAddress(static_cast<unsigned long>(ui->serverAddressSpin->value()));
     m_device->setAuthentication(ui->authCombo->currentIndex());
     m_device->setPassword(ui->passwordEdit->text());
+    m_device->setSecurity(ui->securityCombo->currentData().toInt());
+    m_device->setAuthenticationKey(normalizeHexKey(ui->authenticationKeyEdit->text()));
+    m_device->setBlockCipherKey(normalizeHexKey(ui->blockCipherKeyEdit->text()));
     m_device->applyConnectionSettings();
 }
 
@@ -184,4 +230,8 @@ void DevicePropertiesDialog::onManufacturerChanged(int index)
     ui->clientAddressSpin->setValue(m_device->clientAddress());
     ui->serverAddressSpin->setValue(static_cast<int>(m_device->serverAddress()));
     ui->authCombo->setCurrentIndex(m_device->authentication());
+    const int securityIndex = ui->securityCombo->findData(m_device->security());
+    if (securityIndex >= 0)
+        ui->securityCombo->setCurrentIndex(securityIndex);
+    updateSecurityVisibility();
 }

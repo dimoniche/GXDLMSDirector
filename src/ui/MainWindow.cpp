@@ -7,13 +7,13 @@
 #include "HdlcAddressScannerDialog.h"
 #include "MacroEditorDialog.h"
 #include "PlcDiscoverDialog.h"
-#include "ProfileGenericDialog.h"
 #include "FindObjectDialog.h"
 #include "PropertyTableDelegate.h"
 #include "ui_MainWindow.h"
 
+#include "core/ProfileGenericResult.h"
+
 #include "core/CosemObjectHelper.h"
-#include "core/DataConcentratorManager.h"
 #include "core/ManufacturerSettings.h"
 #include "core/ObjectAttributeNames.h"
 #include "core/GXDLMSProject.h"
@@ -42,6 +42,7 @@
 #include <QHash>
 #include <QHeaderView>
 #include <QMenu>
+#include <QHeaderView>
 #include <QMessageBox>
 #include <QSettings>
 #include <QSet>
@@ -230,7 +231,18 @@ MainWindow::MainWindow(QWidget *parent)
     ui->clockEditorGroup->setVisible(false);
     ui->hdlcEditorGroup->setVisible(false);
     ui->disconnectControlGroup->setVisible(false);
-    ui->profileGenericGroup->setVisible(false);
+
+    m_bufferTabIndex = ui->objectEditorTabs->indexOf(ui->bufferTab);
+    ui->objectEditorTabs->tabBar()->setTabVisible(m_bufferTabIndex, false);
+
+    ui->profileGenericTable->horizontalHeader()->setStretchLastSection(true);
+    ui->profileGenericTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->profileGenericTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+    const QDateTime now = QDateTime::currentDateTime();
+    ui->pgEndDateTime->setDateTime(now);
+    ui->pgStartDateTime->setDateTime(now.addDays(-1));
+    onProfileGenericModeChanged(ui->pgModeCombo->currentIndex());
 
     m_propertyDelegate = new PropertyTableDelegate(ui->propertyTable);
     ui->propertyTable->setItemDelegateForColumn(2, m_propertyDelegate);
@@ -332,6 +344,8 @@ void MainWindow::setupConnections()
     connect(ui->remoteDisconnectButton, &QPushButton::clicked, this, &MainWindow::onRemoteDisconnect);
     connect(ui->remoteReconnectButton, &QPushButton::clicked, this, &MainWindow::onRemoteReconnect);
     connect(ui->readProfileGenericButton, &QPushButton::clicked, this, &MainWindow::onReadProfileGeneric);
+    connect(ui->pgModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onProfileGenericModeChanged);
     connect(ui->actionCancel, &QAction::triggered, this, &MainWindow::onCancel);
     connect(ui->actionForceRead, &QAction::toggled, this, &MainWindow::onForceReadToggled);
     connect(ui->actionTraceHex, &QAction::triggered, this, &MainWindow::onTraceModeChanged);
@@ -351,7 +365,6 @@ void MainWindow::setupConnections()
     connect(ui->actionMacroEditor, &QAction::triggered, this, &MainWindow::onMacroEditor);
     connect(ui->actionConformanceTests, &QAction::triggered, this, &MainWindow::onConformanceTests);
     connect(ui->actionPlcDiscover, &QAction::triggered, this, &MainWindow::onPlcDiscover);
-    connect(ui->actionDataConcentrators, &QAction::triggered, this, &MainWindow::onDataConcentrators);
     connect(ui->actionExit, &QAction::triggered, this, &QWidget::close);
 
     connect(ui->objectTree, &QTreeView::clicked, this, &MainWindow::onObjectTreeClicked);
@@ -857,8 +870,76 @@ void MainWindow::onReadProfileGeneric()
     if (!m_selectedObject || !isProfileGenericSelected())
         return;
 
-    ProfileGenericDialog dlg(activeDevice(), m_selectedObject, this);
-    dlg.exec();
+    GXDLMSDevice *device = activeDevice();
+    if (!device || !(device->state() & DeviceState::Connected))
+        return;
+
+    ui->objectEditorTabs->setCurrentWidget(ui->bufferTab);
+    ui->readProfileGenericButton->setEnabled(false);
+
+    if (ui->pgModeCombo->currentIndex() == 0) {
+        device->readProfileGenericByEntryAsync(m_selectedObject, ui->pgIndexSpin->value(),
+                                               ui->pgCountSpin->value());
+    } else {
+        device->readProfileGenericByRangeAsync(m_selectedObject, ui->pgStartDateTime->dateTime(),
+                                               ui->pgEndDateTime->dateTime());
+    }
+}
+
+void MainWindow::onProfileGenericModeChanged(int index)
+{
+    const bool byEntry = index == 0;
+    ui->pgIndexLabel->setVisible(byEntry);
+    ui->pgIndexSpin->setVisible(byEntry);
+    ui->pgCountLabel->setVisible(byEntry);
+    ui->pgCountSpin->setVisible(byEntry);
+    ui->pgStartLabel->setVisible(!byEntry);
+    ui->pgStartDateTime->setVisible(!byEntry);
+    ui->pgEndLabel->setVisible(!byEntry);
+    ui->pgEndDateTime->setVisible(!byEntry);
+}
+
+void MainWindow::onProfileGenericRead(CGXDLMSObject *object, const ProfileGenericResult &result)
+{
+    if (object != m_selectedObject)
+        return;
+
+    ui->readProfileGenericButton->setEnabled(isProfileGenericSelected()
+                                               && activeDevice()
+                                               && (activeDevice()->state() & DeviceState::Connected)
+                                               && !(activeDevice()->state() & (DeviceState::Connecting
+                                                                                | DeviceState::Disconnecting
+                                                                                | DeviceState::Reading
+                                                                                | DeviceState::Writing)));
+
+    if (result.errorCode != 0) {
+        const QString message = result.errorMessage.isEmpty()
+                                    ? tr("Profile Generic read failed: %1").arg(result.errorCode)
+                                    : result.errorMessage;
+        appendTrace(tr("ERROR: %1").arg(message));
+        QMessageBox::warning(this, tr("Profile Generic"), message);
+        return;
+    }
+
+    showProfileGenericResult(result);
+    ui->objectEditorTabs->setCurrentWidget(ui->bufferTab);
+}
+
+void MainWindow::showProfileGenericResult(const ProfileGenericResult &result)
+{
+    ui->profileGenericTable->clear();
+    ui->profileGenericTable->setColumnCount(result.columnHeaders.size());
+    ui->profileGenericTable->setHorizontalHeaderLabels(result.columnHeaders);
+    ui->profileGenericTable->setRowCount(result.rows.size());
+
+    for (int row = 0; row < result.rows.size(); ++row) {
+        const ProfileGenericRow &profileRow = result.rows.at(row);
+        for (int col = 0; col < profileRow.columns.size(); ++col) {
+            auto *item = new QTableWidgetItem(profileRow.columns.at(col));
+            ui->profileGenericTable->setItem(row, col, item);
+        }
+    }
+    ui->profileGenericTable->resizeColumnsToContents();
 }
 
 void MainWindow::onDlmsTranslator()
@@ -895,16 +976,6 @@ void MainWindow::onPlcDiscover()
     PlcDiscoverDialog dlg(activeDevice(), this);
     if (dlg.exec() == QDialog::Accepted)
         setDirty(true);
-}
-
-void MainWindow::onDataConcentrators()
-{
-    if (!DataConcentratorManager::instance().hasPlugins()) {
-        QMessageBox::information(this, tr("Data Concentrators"),
-                                 tr("No data concentrator plugins are available.\n\n"
-                                    "Data concentrator support requires vendor-specific plugins."));
-        return;
-    }
 }
 
 void MainWindow::recordMacroStep(MacroActionType type, CGXDLMSObject *object, int index,
@@ -1411,7 +1482,16 @@ void MainWindow::updateObjectEditors(CGXDLMSObject *object)
     ui->clockEditorGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_CLOCK);
     ui->hdlcEditorGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_IEC_HDLC_SETUP);
     ui->disconnectControlGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_DISCONNECT_CONTROL);
-    ui->profileGenericGroup->setVisible(object && object->GetObjectType() == DLMS_OBJECT_TYPE_PROFILE_GENERIC);
+
+    const bool profileGeneric = object && object->GetObjectType() == DLMS_OBJECT_TYPE_PROFILE_GENERIC;
+    if (m_bufferTabIndex >= 0) {
+        ui->objectEditorTabs->tabBar()->setTabVisible(m_bufferTabIndex, profileGeneric);
+        if (!profileGeneric && ui->objectEditorTabs->currentWidget() == ui->bufferTab)
+            ui->objectEditorTabs->setCurrentWidget(ui->attributesTab);
+    }
+    if (!profileGeneric)
+        ui->profileGenericTable->clear();
+
     updatePropertyTable(object);
     updateMethodsTable(object);
     updateDisconnectControlPanel(object);
@@ -1593,6 +1673,8 @@ void MainWindow::bindActiveDevice()
     m_deviceConnections.append(connect(device, &GXDLMSDevice::objectRead, this, &MainWindow::onObjectRead));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::objectWritten, this, &MainWindow::onObjectWritten));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::methodInvoked, this, &MainWindow::onMethodInvoked));
+    m_deviceConnections.append(connect(device, &GXDLMSDevice::profileGenericRead, this,
+                                       &MainWindow::onProfileGenericRead));
     m_deviceConnections.append(connect(device, &GXDLMSDevice::errorOccurred, this, [this](const QString &msg) {
         appendTrace(tr("ERROR: %1").arg(msg));
         QMessageBox::warning(this, tr("Error"), msg);

@@ -21,12 +21,16 @@ private slots:
     void onMediaTypeChanged(int index);
     void onManufacturerChanged(int index);
     void onInterfaceChanged(int index);
+    void onSecurityChanged(int index);
     void applySettings();
 
 private:
     void loadFromDevice();
     void updateMediaVisibility();
     void updateInterfaceVisibility();
+    void updateSecurityVisibility();
+    void setupSecurityCombo();
+    static QString normalizeHexKey(const QString &text);
     int interfaceTypeFromIndex(int index) const;
     int interfaceIndexFromType(int type) const;
 

@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("GXDLMSDirector"));
     QApplication::setOrganizationName(QStringLiteral("Gurux"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.0"));
+    QApplication::setApplicationVersion(QStringLiteral(GXDLMS_DIRECTOR_VERSION));
 
     qRegisterMetaType<CGXDLMSObject *>("CGXDLMSObject*");
     qRegisterMetaType<DeviceStates>("DeviceStates");

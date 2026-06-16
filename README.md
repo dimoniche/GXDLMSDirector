@@ -8,7 +8,7 @@
 
 - CMake 3.16+
 - C++17 компилятор
-- Qt6 (Core, Widgets, SerialPort, Network, Concurrent, Xml)
+- Qt6 (Core, Widgets, SerialPort, Network, Concurrent, Xml, Test — для unit-тестов)
 - Git (для загрузки зависимости Gurux)
 
 ### macOS (Homebrew)
@@ -26,6 +26,49 @@ cmake .. -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@6
 cmake --build . -j$(sysctl -n hw.ncpu)
 ```
 
+### Unit-тесты
+
+```bash
+cmake .. -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@6 -DBUILD_TESTS=ON
+cmake --build . -j8
+ctest --test-dir unit_tests --output-on-failure
+```
+
+Покрытие: `ProjectSerializer`, `VariantConverter`, `AssociationViewParser`, `MacroSerializer`, `TraceFormatter`.
+
+### Packaging
+
+Скрипты собирают release и кладут артефакты в `dist/`:
+
+```bash
+# macOS .dmg (macdeployqt + ad-hoc codesign)
+./packaging/build-dmg.sh
+# или
+./packaging/package.sh
+
+# Linux AppImage (linuxdeploy + linuxdeploy-plugin-qt)
+./packaging/build-appimage.sh
+```
+
+Переменные окружения: `BUILD_DIR`, `DIST_DIR`, `CMAKE_PREFIX_PATH` (macOS, путь к Qt6).
+
+Версия задаётся в файле [`VERSION`](VERSION) (единый источник для CMake, packaging и приложения).
+
+### Установка
+
+```bash
+# Сборка пакета
+./packaging/package.sh
+
+# Установка из build/dist (macOS -> /Applications, Linux -> ~/.local/bin)
+./install.sh
+```
+
+| Платформа | Артефакт |
+|-----------|----------|
+| macOS | `dist/GXDLMSDirector-<version>-macOS.dmg` |
+| Linux | `dist/GXDLMSDirector-<version>-x86_64.AppImage` |
+
 Запуск:
 
 ```bash
@@ -33,65 +76,82 @@ open GXDLMSDirector.app          # macOS
 ./GXDLMSDirector                 # Linux
 ```
 
-## Возможности (MVP)
+## Возможности
 
-- Подключение по **Serial** и **TCP**
-- Настройка DLMS-параметров (LN/SN, HDLC/Wrapper, адреса, аутентификация)
-- Подключение / отключение / чтение association view
-- Дерево COSEM-объектов и таблица атрибутов
-- Trace-лог обмена (TX/RX hex)
-- **Сохранение/загрузка проектов `.gxc`** (+ `.objects.xml` для COSEM-объектов)
-- **Manufacturer settings** — профили производителей (`~/Documents/GXDLMSDirector/Manufacturers.xml`)
-- **Запись атрибутов** — редактирование значений в таблице + Write Object
-- **Profile Generic** — чтение по entry/range, таблица результатов
-- **DLMS Translator** — hex PDU/data → XML (Tools menu)
-- **HDLC Address Scanner** — перебор client/server адресов через SNRM
-- **Macro Editor** — запись/воспроизведение `.gxm`, run/verify
-- **Conformance** — negotiated conformance + external `.gxm` tests с HTML-отчётом
-- **PLC Discover** — обнаружение PLC-счётчиков, MAC-адреса в свойствах устройства
-- **Data Concentrators** — заглушка plugin-интерфейса (без vendor plugins)
-- **COSEM object editors** — имена атрибутов/методов, тип-aware таблица, Clock editor
-- **Add/Delete COSEM objects** — offline редактирование association view
-- **Method invocation** — вкладка Methods, Invoke + macro recording
-- **Octet string editor** — hex-редактор для бинарных атрибутов
-- **HDLC setup editor** — выбор скорости + запись attr 2
-- **Disconnect control editor** — статус + Remote disconnect/reconnect
-- **Property table delegates** — bool и HDLC speed как combo
-- **DLMS Notifications** — Start/Stop, вкладка Notifications, hex/XML/PDU
-- **Trace modes** — View → Hex / XML / PDU / None, timestamps
-- **Force Read** — чтение всех атрибутов объекта (включая static)
-- **Cancel** — отмена длительных read-операций
-- **Multi-device projects** — несколько счётчиков в одном `.gxc`
-- **Recent projects** — MRU в меню File
-- **Find / Find Next** — поиск COSEM-объектов в дереве (Ctrl+F / F3)
-- **Groups** — группировка объектов по типу COSEM (View → Groups), вкладки Tree / Object List
-- **Read selection** — чтение выбранного объекта, группы типа или устройства (Connection → Read, Ctrl+R, контекстное меню)
-- **Clone device** — копия настроек и объектов
-- **Save/Load values** — экспорт/импорт `.objects.xml`
-- Асинхронные операции (не блокируют UI)
+### Подключение и DLMS
+
+- **Serial** и **TCP**
+- LN/SN referencing, HDLC/Wrapper/PLC, адреса, аутентификация, **DLMS security** (GAK/GUEK)
+- Подключение / отключение / association view
+- Trace TX/RX (hex / XML / PDU), notifications
+- **Force Read**, **Cancel** длительных операций
+
+### Объекты и чтение
+
+- Дерево COSEM-объектов с **группировкой по типу** (View → Groups)
+- Вкладки **Tree** / **Object List**
+- **Read** — объект, группа типа или всё устройство (Ctrl+R, контекстное меню)
+- Таблица **Attributes** с тип-aware редактированием и записью
+- Вкладка **Methods**, invoke + macro recording
+- Редакторы: Clock, HDLC setup, Disconnect control, Octet string
+
+### Profile Generic
+
+- Вкладка **Buffer** при выборе Profile Generic (Attributes / Methods / **Buffer**)
+- **By entry** по умолчанию (start index 1, row count 10), опционально **By range**
+- Кнопка **Read** и таблица результатов в главном окне
+- **Connection → Read Profile Generic...** / **Ctrl+Shift+G** — переключение на Buffer и чтение
+- Массовое Read пропускает attr 2 (buffer) — используйте вкладку Buffer
+
+### Проекты и данные
+
+- **`.gxc`** (формат Qt-порта) + `.objects.xml`, multi-device, MRU, Clone
+- **Save/Load values**, Find (Ctrl+F / F3)
+- Manufacturer profiles (`~/Documents/GXDLMSDirector/Manufacturers.xml`)
+
+### Инструменты
+
+- **DLMS Translator**, **HDLC Address Scanner**, **PLC Discover**
+- **Macro Editor** (`.gxm`), **Conformance** (MVP + external tests)
 
 ## Структура проекта
 
 ```
 src/
-  core/           # DLMS-слой (Communicator, Device, MediaConnection)
-  ui/             # Qt6 UI (MainWindow, DevicePropertiesDialog)
+  core/           # DLMS-слой (Communicator, Device, Serializer, …)
+  ui/             # Qt6 UI
+unit_tests/       # Qt Test (ProjectSerializer, VariantConverter)
+packaging/        # build-dmg.sh, build-appimage.sh
 third_party/
   gurux_dlms/     # Gurux.DLMS.cpp
-cmake/            # CMake-модули
+cmake/
 ```
 
-## Дорожная карта (порт с C#)
+## Дорожная карта
 
-| Фаза | Функциональность |
-|------|------------------|
-| **1 (готово)** | Базовое подключение, чтение объектов, trace |
-| **2 (готово)** | `.gxc` проекты, manufacturer settings, запись атрибутов |
-| **3 (готово)** | Profile Generic, DLMS Translator, HDLC address scanner |
-| **4 (готово)** | Макросы, conformance (MVP), PLC discover, data concentrator stub |
-| **5 (готово)** | COSEM object editors: attributes/methods, add/delete, invoke |
-| **6 (готово)** | HDLC/Disconnect editors, notifications, trace modes, force read, cancel |
-| **7 (готово)** | Multi-device projects, MRU, find, clone, save/load values |
+| Фаза | Статус | Содержание |
+|------|--------|------------|
+| **1–7** | готово | MVP: connect, read/write, projects, macros, multi-device, groups, … |
+| **8a** | готово | **Profile Generic в главном окне** — вкладка Buffer, entry по умолчанию, таблица результатов |
+| **8b** | готово | **Unit-тесты** — serializer, variant, association view, macro, trace |
+| **8c** | готово | **Packaging** — `.dmg` (macdeployqt), AppImage (linuxdeploy), `dist/` |
+| **8d** | готово | **Security в Device Properties** — security mode, GAK/GUEK (hex), сохранение в `.gxc` |
+
+**Не планируется:** Data Concentrator plugins; импорт `.gxc` из C# Director (свой XML-формат Qt-порта).
+
+### Фаза 8a — Profile Generic в главном окне
+
+Реализовано: вкладка **Buffer**, режим **By entry** по умолчанию, таблица в главном окне, меню/горячая клавиша запускают чтение.
+
+### Фаза 8d — Security
+
+Реализовано: вкладка **Security** в Device Properties — режим (None / Auth / Encrypt / Auth+Encrypt), ключи в hex, сохранение в проект.
+
+### Фаза 8c — Packaging
+
+- **macOS:** Release-сборка, `macdeployqt` (Qt в `.app`), ad-hoc codesign, `.dmg` в `dist/`
+- **Linux:** `cmake --install` + `linuxdeploy` + plugin Qt → AppImage в `dist/`
+- Обёртка: `./packaging/package.sh` (выбор по ОС)
 
 ## Лицензия
 

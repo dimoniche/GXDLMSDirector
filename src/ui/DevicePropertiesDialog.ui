@@ -293,6 +293,51 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="tabSecurity">
+      <attribute name="title">
+       <string>Security</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayoutSecurity">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelSecurity">
+         <property name="text">
+          <string>Security:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="securityCombo"/>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelAuthenticationKey">
+         <property name="text">
+          <string>Authentication key (hex):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLineEdit" name="authenticationKeyEdit">
+         <property name="placeholderText">
+          <string>00112233445566778899AABBCCDDEEFF</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelBlockCipherKey">
+         <property name="text">
+          <string>Block cipher key (hex):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLineEdit" name="blockCipherKeyEdit">
+         <property name="placeholderText">
+          <string>FFEEDDCCBBAA99887766554433221100</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
      <widget class="QWidget" name="tabConformance">
       <attribute name="title">
        <string>Conformance</string>
