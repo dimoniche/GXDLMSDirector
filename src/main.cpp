@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/GXDLMSDirector.png")));
 
     qRegisterMetaType<CGXDLMSObject *>("CGXDLMSObject*");
+    qRegisterMetaType<quintptr>("quintptr");
     qRegisterMetaType<DeviceStates>("DeviceStates");
     qRegisterMetaType<ReadResult>("ReadResult");
     qRegisterMetaType<QList<ReadResult>>("QList<ReadResult>");
