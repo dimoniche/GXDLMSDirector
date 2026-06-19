@@ -5,7 +5,9 @@
 #include "VariantConverter.h"
 #include "ConformanceHelper.h"
 
+#include <GXDLMSAccessItem.h>
 #include <GXDLMSConverter.h>
+#include <GXDLMSData.h>
 #include <GXDLMSProfileGeneric.h>
 #include <GXDLMSTranslator.h>
 #include <GXDLMSObject.h>
@@ -46,6 +48,29 @@ GXDLMSCommunicator::~GXDLMSCommunicator()
     close();
 }
 
+DLMS_INTERFACE_TYPE GXDLMSCommunicator::effectiveInterfaceType() const
+{
+    if (!m_device)
+        return DLMS_INTERFACE_TYPE_HDLC;
+
+    const auto iface = static_cast<DLMS_INTERFACE_TYPE>(m_device->interfaceType());
+    if (m_device->mediaType() == MediaType::Network
+        && (iface == DLMS_INTERFACE_TYPE_HDLC || iface == DLMS_INTERFACE_TYPE_HDLC_WITH_MODE_E)) {
+        // IEC 62056-47 TCP wrapper is used for network transport, not serial HDLC framing.
+        return DLMS_INTERFACE_TYPE_WRAPPER;
+    }
+    return iface;
+}
+
+bool GXDLMSCommunicator::usesAccessService() const
+{
+    if (!m_client || !m_client->GetCiphering())
+        return false;
+    if (m_client->GetCiphering()->GetSecurity() == DLMS_SECURITY_NONE)
+        return false;
+    return (m_client->GetNegotiatedConformance() & DLMS_CONFORMANCE_ACCESS) != 0;
+}
+
 void GXDLMSCommunicator::applyClientSettings()
 {
     if (!m_device)
@@ -60,7 +85,7 @@ void GXDLMSCommunicator::applyClientSettings()
         static_cast<int>(m_device->serverAddress()),
         static_cast<DLMS_AUTHENTICATION>(m_device->authentication()),
         password,
-        static_cast<DLMS_INTERFACE_TYPE>(m_device->interfaceType()));
+        effectiveInterfaceType());
 
     if (!m_device->manufacturer().isEmpty()) {
         char manufacturerId[3] = {' ', ' ', ' '};
@@ -84,6 +109,10 @@ void GXDLMSCommunicator::applyClientSettings()
             bb.Clear();
             bb.SetHexString(blockKey);
             m_client->GetCiphering()->SetBlockCipherKey(bb);
+        }
+        if (m_client->GetCiphering()->GetSecurity() != DLMS_SECURITY_NONE) {
+            m_client->SetProposedConformance(static_cast<DLMS_CONFORMANCE>(
+                m_client->GetProposedConformance() | DLMS_CONFORMANCE_GENERAL_PROTECTION));
         }
     }
 
@@ -225,6 +254,68 @@ int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReply
     return DLMS_ERROR_CODE_OK;
 }
 
+int GXDLMSCommunicator::updateFrameCounter()
+{
+    if (!m_client || !m_client->GetCiphering()
+        || m_client->GetCiphering()->GetSecurity() == DLMS_SECURITY_NONE) {
+        return DLMS_ERROR_CODE_OK;
+    }
+
+    const unsigned long savedClient = m_client->GetClientAddress();
+    const DLMS_AUTHENTICATION savedAuth = m_client->GetAuthentication();
+    const DLMS_SECURITY savedSecurity = m_client->GetCiphering()->GetSecurity();
+    CGXByteBuffer challenge = m_client->GetCtoSChallenge();
+
+    m_client->SetProposedConformance(static_cast<DLMS_CONFORMANCE>(
+        m_client->GetProposedConformance() | DLMS_CONFORMANCE_GENERAL_PROTECTION));
+    m_client->SetClientAddress(16);
+    m_client->SetAuthentication(DLMS_AUTHENTICATION_NONE);
+    m_client->GetCiphering()->SetSecurity(DLMS_SECURITY_NONE);
+
+    std::vector<CGXByteBuffer> data;
+    CGXReplyData reply;
+    int ret = 0;
+
+    if ((ret = m_client->SNRMRequest(data)) != 0
+        || (ret = readDataBlock(data, reply)) != 0
+        || (ret = m_client->ParseUAResponse(reply.GetData())) != 0) {
+        m_client->SetClientAddress(savedClient);
+        m_client->SetAuthentication(savedAuth);
+        m_client->GetCiphering()->SetSecurity(savedSecurity);
+        m_client->SetCtoSChallenge(challenge);
+        return ret;
+    }
+
+    reply.Clear();
+    if ((ret = m_client->AARQRequest(data)) != 0
+        || (ret = readDataBlock(data, reply)) != 0
+        || (ret = m_client->ParseAAREResponse(reply.GetData())) != 0) {
+        m_client->SetClientAddress(savedClient);
+        m_client->SetAuthentication(savedAuth);
+        m_client->GetCiphering()->SetSecurity(savedSecurity);
+        m_client->SetCtoSChallenge(challenge);
+        return ret;
+    }
+
+    reply.Clear();
+    CGXDLMSData counter(QStringLiteral("0.0.96.11.255.2.0").toStdString());
+    if ((ret = m_client->Read(&counter, 2, data)) == 0
+        && (ret = readDataBlock(data, reply)) == 0
+        && (ret = m_client->UpdateValue(counter, 2, reply.GetValue())) == 0) {
+        m_client->GetCiphering()->SetInvocationCounter(
+            1 + static_cast<unsigned long>(counter.GetValue().ToInteger()));
+    }
+
+    disconnect();
+
+    m_client->SetClientAddress(savedClient);
+    m_client->SetAuthentication(savedAuth);
+    m_client->GetCiphering()->SetSecurity(savedSecurity);
+    m_client->SetCtoSChallenge(challenge);
+
+    return ret;
+}
+
 int GXDLMSCommunicator::initializeConnection()
 {
     if (!m_media)
@@ -241,6 +332,11 @@ int GXDLMSCommunicator::initializeConnection()
         ret = m_media->openNetwork(m_device->hostName(), m_device->port());
     }
     if (ret != 0) {
+        close();
+        return ret;
+    }
+
+    if ((ret = updateFrameCounter()) != 0) {
         close();
         return ret;
     }
@@ -266,7 +362,7 @@ int GXDLMSCommunicator::initializeConnection()
     }
 
     reply.Clear();
-    if (m_client->IsAuthenticationRequired()) {
+    if (m_client->GetAuthentication() > DLMS_AUTHENTICATION_LOW || m_client->IsAuthenticationRequired()) {
         emit progressChanged(tr("Authenticating..."), 3, 4);
         if ((ret = m_client->GetApplicationAssociationRequest(data)) != 0
             || (ret = readDataBlock(data, reply)) != 0
@@ -314,13 +410,28 @@ int GXDLMSCommunicator::read(CGXDLMSObject *object, int attributeIndex, QString 
 {
     std::vector<CGXByteBuffer> data;
     CGXReplyData reply;
-    int ret = m_client->Read(object, attributeIndex, data);
-    if (ret != 0)
-        return ret;
-    if ((ret = readDataBlock(data, reply)) != 0)
-        return ret;
-    if ((ret = m_client->UpdateValue(*object, attributeIndex, reply.GetValue())) != 0)
-        return ret;
+    int ret = 0;
+
+    if (usesAccessService()) {
+        std::vector<CGXDLMSAccessItem> list;
+        list.emplace_back(DLMS_ACCESS_SERVICE_COMMAND_TYPE_GET, object,
+                          static_cast<unsigned char>(attributeIndex));
+        if ((ret = m_client->AccessRequest(nullptr, list, data)) != 0)
+            return ret;
+        if ((ret = readDataBlock(data, reply)) != 0)
+            return ret;
+        if ((ret = m_client->ParseAccessResponse(list, reply.GetData())) != 0)
+            return ret;
+        if (list.front().GetError() != DLMS_ERROR_CODE_OK)
+            return list.front().GetError();
+    } else {
+        if ((ret = m_client->Read(object, attributeIndex, data)) != 0)
+            return ret;
+        if ((ret = readDataBlock(data, reply)) != 0)
+            return ret;
+        if ((ret = m_client->UpdateValue(*object, attributeIndex, reply.GetValue())) != 0)
+            return ret;
+    }
 
     DLMS_DATA_TYPE type;
     if ((ret = object->GetDataType(attributeIndex, type)) != 0)
