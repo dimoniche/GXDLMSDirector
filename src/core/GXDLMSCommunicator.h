@@ -101,10 +101,10 @@ private:
     int sendData(CGXByteBuffer &data);
     int readBytes(CGXByteBuffer &reply, unsigned char eop);
     int readNetworkBytes(CGXByteBuffer &reply);
-    bool usesSerialFrameDelimiter() const;
+    bool usesHdlcFrameDelimiter() const;
     bool usesAccessService() const;
+    int parseUaResponse(CGXByteBuffer &data);
     int updateFrameCounter();
-    DLMS_INTERFACE_TYPE effectiveInterfaceType() const;
 
     GXDLMSDevice *m_device;
     std::string m_passwordBuffer;

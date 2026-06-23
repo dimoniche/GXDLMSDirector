@@ -32,6 +32,7 @@ public:
 
     int sendData(const unsigned char *data, int size);
     int readData(QByteArray &buffer, unsigned char eop);
+    int readUntilByte(QByteArray &buffer, unsigned char eop);
     int readNetworkChunk(QByteArray &buffer);
     int readAvailable(QByteArray &buffer, int timeoutMs);
 

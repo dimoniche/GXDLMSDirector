@@ -1,5 +1,7 @@
 #include "MediaConnection.h"
 
+#include <QIODevice>
+
 namespace {
 constexpr int DLMS_COMM_ERROR = 0x10000;
 }
@@ -101,19 +103,24 @@ int MediaConnection::sendData(const unsigned char *data, int size)
     return 0;
 }
 
-int MediaConnection::readData(QByteArray &buffer, unsigned char eop)
+int MediaConnection::readUntilByte(QByteArray &buffer, unsigned char eop)
 {
     QMutexLocker lock(&m_mutex);
     buffer.clear();
-    if (!m_serial)
+    if (!m_serial && !m_socket)
         return DLMS_COMM_ERROR;
 
     int lastIndex = 0;
     while (true) {
-        if (!m_serial->waitForReadyRead(m_waitTimeMs))
-            return DLMS_COMM_ERROR | static_cast<int>(m_serial->error());
+        QIODevice *io = m_serial ? static_cast<QIODevice *>(m_serial.get())
+                                 : static_cast<QIODevice *>(m_socket.get());
+        if (!io->waitForReadyRead(m_waitTimeMs)) {
+            const int err = m_serial ? static_cast<int>(m_serial->error())
+                                   : static_cast<int>(m_socket->error());
+            return DLMS_COMM_ERROR | err;
+        }
 
-        const QByteArray chunk = m_serial->readAll();
+        const QByteArray chunk = io->readAll();
         if (chunk.isEmpty())
             return DLMS_COMM_ERROR;
 
@@ -130,6 +137,15 @@ int MediaConnection::readData(QByteArray &buffer, unsigned char eop)
         }
         lastIndex = buffer.size() - 1;
     }
+}
+
+int MediaConnection::readData(QByteArray &buffer, unsigned char eop)
+{
+    QMutexLocker lock(&m_mutex);
+    if (!m_serial)
+        return DLMS_COMM_ERROR;
+    lock.unlock();
+    return readUntilByte(buffer, eop);
 }
 
 int MediaConnection::readNetworkChunk(QByteArray &buffer)

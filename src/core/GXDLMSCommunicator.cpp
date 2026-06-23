@@ -48,20 +48,6 @@ GXDLMSCommunicator::~GXDLMSCommunicator()
     close();
 }
 
-DLMS_INTERFACE_TYPE GXDLMSCommunicator::effectiveInterfaceType() const
-{
-    if (!m_device)
-        return DLMS_INTERFACE_TYPE_HDLC;
-
-    const auto iface = static_cast<DLMS_INTERFACE_TYPE>(m_device->interfaceType());
-    if (m_device->mediaType() == MediaType::Network
-        && (iface == DLMS_INTERFACE_TYPE_HDLC || iface == DLMS_INTERFACE_TYPE_HDLC_WITH_MODE_E)) {
-        // IEC 62056-47 TCP wrapper is used for network transport, not serial HDLC framing.
-        return DLMS_INTERFACE_TYPE_WRAPPER;
-    }
-    return iface;
-}
-
 bool GXDLMSCommunicator::usesAccessService() const
 {
     if (!m_client || !m_client->GetCiphering())
@@ -85,7 +71,7 @@ void GXDLMSCommunicator::applyClientSettings()
         static_cast<int>(m_device->serverAddress()),
         static_cast<DLMS_AUTHENTICATION>(m_device->authentication()),
         password,
-        effectiveInterfaceType());
+        static_cast<DLMS_INTERFACE_TYPE>(m_device->interfaceType()));
 
     if (!m_device->manufacturer().isEmpty()) {
         char manufacturerId[3] = {' ', ' ', ' '};
@@ -131,7 +117,7 @@ int GXDLMSCommunicator::sendData(CGXByteBuffer &data)
 int GXDLMSCommunicator::readBytes(CGXByteBuffer &reply, unsigned char eop)
 {
     QByteArray buffer;
-    const int ret = m_media->readData(buffer, eop);
+    const int ret = m_media->readUntilByte(buffer, eop);
     if (ret != 0)
         return ret;
     reply.Set(buffer.constData(), static_cast<unsigned long>(buffer.size()));
@@ -148,9 +134,9 @@ int GXDLMSCommunicator::readNetworkBytes(CGXByteBuffer &reply)
     return 0;
 }
 
-bool GXDLMSCommunicator::usesSerialFrameDelimiter() const
+bool GXDLMSCommunicator::usesHdlcFrameDelimiter() const
 {
-    if (m_media->type() != MediaType::Serial)
+    if (!m_client)
         return false;
 
     const DLMS_INTERFACE_TYPE iface = m_client->GetInterfaceType();
@@ -184,7 +170,7 @@ int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
             continue;
         }
 
-        if (usesSerialFrameDelimiter()) {
+        if (usesHdlcFrameDelimiter()) {
             CGXByteBuffer bb;
             if ((ret = readBytes(bb, 0x7E)) != 0)
                 return ret;
@@ -254,6 +240,108 @@ int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReply
     return DLMS_ERROR_CODE_OK;
 }
 
+namespace {
+
+int extractHdlcXidParameters(CGXByteBuffer &in, unsigned long endPos, CGXByteBuffer &out)
+{
+    unsigned char b = 0;
+    int ret = 0;
+    while (in.GetPosition() < endPos && in.GetPosition() < in.GetSize()) {
+        if ((ret = in.GetUInt8(in.GetPosition(), &b)) != 0)
+            return ret;
+
+        if (b == 0x00 && in.GetSize() - in.GetPosition() >= 2) {
+            unsigned char next = 0;
+            if (in.GetUInt8(in.GetPosition() + 1, &next) == 0 && next == 0x80) {
+                in.SetPosition(in.GetPosition() + 2);
+                continue;
+            }
+        }
+
+        if (b == 0x81 && in.GetSize() - in.GetPosition() >= 3) {
+            unsigned char group = 0;
+            unsigned char groupLen = 0;
+            if (in.GetUInt8(in.GetPosition() + 1, &group) == 0 && group == 0x80
+                && in.GetUInt8(in.GetPosition() + 2, &groupLen) == 0) {
+                const unsigned long groupStart = in.GetPosition() + 3;
+                const unsigned long groupEnd = qMin(groupStart + groupLen, in.GetSize());
+                in.SetPosition(groupStart);
+                if ((ret = extractHdlcXidParameters(in, groupEnd, out)) != 0)
+                    return ret;
+                if (in.GetPosition() < groupEnd)
+                    in.SetPosition(groupEnd);
+                continue;
+            }
+        }
+
+        if (b >= HDLC_INFO_MAX_INFO_TX && b <= HDLC_INFO_WINDOW_SIZE_RX) {
+            unsigned char id = 0;
+            unsigned char len = 0;
+            if ((ret = in.GetUInt8(&id)) != 0 || (ret = in.GetUInt8(&len)) != 0)
+                return ret;
+            if (len != 1 && len != 2 && len != 4)
+                return DLMS_ERROR_CODE_INVALID_PARAMETER;
+            if ((ret = out.SetUInt8(id)) != 0 || (ret = out.SetUInt8(len)) != 0)
+                return ret;
+            for (unsigned char i = 0; i < len; ++i) {
+                if ((ret = in.GetUInt8(&b)) != 0)
+                    return ret;
+                if ((ret = out.SetUInt8(b)) != 0)
+                    return ret;
+            }
+            continue;
+        }
+
+        in.SetPosition(in.GetPosition() + 1);
+    }
+    return DLMS_ERROR_CODE_OK;
+}
+
+int flattenHdlcXidParameters(CGXByteBuffer &data, CGXByteBuffer &flat)
+{
+    flat.Clear();
+    const unsigned long savedPos = data.GetPosition();
+    data.SetPosition(0);
+
+    int ret = extractHdlcXidParameters(data, data.GetSize(), flat);
+    data.SetPosition(savedPos);
+    if (ret != 0 || flat.GetSize() == 0)
+        return ret != 0 ? ret : DLMS_ERROR_CODE_INVALID_PARAMETER;
+
+    CGXByteBuffer wrapped;
+    if ((ret = wrapped.SetUInt8(0x81)) != 0
+        || (ret = wrapped.SetUInt8(0x80)) != 0
+        || (ret = wrapped.SetUInt8(static_cast<unsigned char>(flat.GetSize()))) != 0
+        || (ret = wrapped.Set(&flat)) != 0) {
+        return ret;
+    }
+
+    flat = wrapped;
+    flat.SetPosition(0);
+    return DLMS_ERROR_CODE_OK;
+}
+
+} // namespace
+
+int GXDLMSCommunicator::parseUaResponse(CGXByteBuffer &data)
+{
+    int ret = m_client->ParseUAResponse(data);
+    if (ret != DLMS_ERROR_CODE_INVALID_PARAMETER)
+        return ret;
+
+    CGXByteBuffer flat;
+    if (flattenHdlcXidParameters(data, flat) == 0) {
+        ret = m_client->ParseUAResponse(flat);
+        if (ret == DLMS_ERROR_CODE_OK)
+            return ret;
+    }
+
+    // Some meters answer SNRM with nested user-info blocks. If parsing still fails,
+    // keep Gurux defaults when the client sent SNRM without negotiation data.
+    data.Clear();
+    return m_client->ParseUAResponse(data);
+}
+
 int GXDLMSCommunicator::updateFrameCounter()
 {
     if (!m_client || !m_client->GetCiphering()
@@ -278,7 +366,7 @@ int GXDLMSCommunicator::updateFrameCounter()
 
     if ((ret = m_client->SNRMRequest(data)) != 0
         || (ret = readDataBlock(data, reply)) != 0
-        || (ret = m_client->ParseUAResponse(reply.GetData())) != 0) {
+        || (ret = parseUaResponse(reply.GetData())) != 0) {
         m_client->SetClientAddress(savedClient);
         m_client->SetAuthentication(savedAuth);
         m_client->GetCiphering()->SetSecurity(savedSecurity);
@@ -347,7 +435,7 @@ int GXDLMSCommunicator::initializeConnection()
     emit progressChanged(tr("Sending SNRM request..."), 1, 4);
     if ((ret = m_client->SNRMRequest(data)) != 0
         || (ret = readDataBlock(data, reply)) != 0
-        || (ret = m_client->ParseUAResponse(reply.GetData())) != 0) {
+        || (ret = parseUaResponse(reply.GetData())) != 0) {
         close();
         return ret;
     }
