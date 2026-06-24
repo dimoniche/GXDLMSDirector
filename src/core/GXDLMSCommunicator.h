@@ -59,6 +59,8 @@ public:
     void applyClientSettings();
     bool notificationTimerActive() const;
     bool deviceNotificationsEnabled() const;
+    bool notificationTimerActive() const;
+    bool deviceNotificationsEnabled() const;
 
 public slots:
     void initIo();
@@ -126,4 +128,5 @@ private:
     CGXByteBuffer m_rxBuffer;
     std::atomic<bool> *m_cancelFlag = nullptr;
     std::atomic<bool> m_meterOperationActive{false};
+    std::atomic<bool> m_linkDead{false};
 };

@@ -98,7 +98,12 @@ GXDLMSDevice::GXDLMSDevice(QObject *parent)
                     else
                         emit errorOccurred(tr("Read failed: %1").arg(formatDlmsError(result.errorCode)));
                 }
-                setState(m_state & ~DeviceStates(DeviceState::Reading));
+                if (m_communicator->isLinkDead()
+                    || (m_communicator->media() && !m_communicator->media()->isOpen())) {
+                    setState(DeviceState::None);
+                } else {
+                    setState(m_state & ~DeviceStates(DeviceState::Reading));
+                }
             });
     connect(m_communicator.get(), &GXDLMSCommunicator::readAttributeCompleted, this,
             [this](const ReadResult &result) {
@@ -339,7 +344,12 @@ void GXDLMSDevice::handleReadAllFinished(const QList<ReadResult> &results)
     }
 
     const bool cancelled = m_cancelRequested.exchange(false);
-    setState(m_state & ~DeviceStates(DeviceState::Reading));
+    if (m_communicator->isLinkDead()
+        || (m_communicator->media() && !m_communicator->media()->isOpen())) {
+        setState(DeviceState::None);
+    } else {
+        setState(m_state & ~DeviceStates(DeviceState::Reading));
+    }
     emit readAllFinished();
     if (cancelled)
         emit traceMessage(tr("Operation cancelled."));
