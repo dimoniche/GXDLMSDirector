@@ -21,6 +21,22 @@ QString formatDlmsError(int errorCode)
     return QString::fromUtf8(message);
 }
 
+bool canStartMeterOperation(DeviceStates state)
+{
+    if ((state & DeviceState::Connected) == 0)
+        return false;
+    return (state & (DeviceState::Connecting | DeviceState::Disconnecting | DeviceState::Reading
+                     | DeviceState::Writing))
+           == 0;
+}
+
+bool canStartConnectOperation(DeviceStates state)
+{
+    return (state & (DeviceState::Connecting | DeviceState::Disconnecting | DeviceState::Reading
+                     | DeviceState::Writing))
+           == 0;
+}
+
 } // namespace
 
 unsigned long GXDLMSDevice::serverAddress() const
@@ -50,6 +66,23 @@ GXDLMSDevice::GXDLMSDevice(QObject *parent)
             this, &GXDLMSDevice::progressChanged);
     connect(m_communicator.get(), &GXDLMSCommunicator::errorOccurred,
             this, &GXDLMSDevice::errorOccurred);
+    connect(m_communicator.get(), &GXDLMSCommunicator::operationSkipped, this,
+            [this](const QString &reason) {
+                if (m_state & DeviceState::Connecting) {
+                    setState(DeviceState::None);
+                } else if (m_state & DeviceState::Disconnecting) {
+                    setState(DeviceState::Connected | DeviceState::Initialized);
+                } else {
+                    setState(m_state & ~(DeviceState::Reading | DeviceState::Writing));
+                }
+                emit traceMessage(reason);
+            });
+    connect(m_communicator.get(), &GXDLMSCommunicator::connectionLost, this, [this]() {
+        QMetaObject::invokeMethod(m_communicator.get(), "setNotificationPolling", Qt::QueuedConnection,
+                                  Q_ARG(bool, false));
+        setState(DeviceState::None);
+        emit traceMessage(tr("Connection lost."));
+    });
 
     connect(m_communicator.get(), &GXDLMSCommunicator::connectFinished,
             this, &GXDLMSDevice::handleConnectionFinished);
@@ -107,19 +140,25 @@ void GXDLMSDevice::setState(DeviceStates state)
 
 void GXDLMSDevice::connectAsync()
 {
+    if (!canStartConnectOperation(m_state))
+        return;
+
     setState(DeviceState::Connecting);
     QMetaObject::invokeMethod(m_communicator.get(), "connectToMeter", Qt::QueuedConnection);
 }
 
 void GXDLMSDevice::disconnectAsync()
 {
+    if (!canStartConnectOperation(m_state))
+        return;
+
     setState(DeviceState::Disconnecting);
     QMetaObject::invokeMethod(m_communicator.get(), "disconnectFromMeter", Qt::QueuedConnection);
 }
 
 void GXDLMSDevice::readAllAsync()
 {
-    if (!(m_state & DeviceState::Connected))
+    if (!canStartMeterOperation(m_state))
         return;
 
     m_cancelRequested = false;
@@ -130,7 +169,7 @@ void GXDLMSDevice::readAllAsync()
 
 void GXDLMSDevice::readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     m_cancelRequested = false;
@@ -142,7 +181,7 @@ void GXDLMSDevice::readSelectedObjectAsync(CGXDLMSObject *object, bool forceAll)
 
 void GXDLMSDevice::readObjectsAsync(const QList<CGXDLMSObject *> &objects, bool forceAll)
 {
-    if (!(m_state & DeviceState::Connected) || objects.isEmpty())
+    if (!canStartMeterOperation(m_state) || objects.isEmpty())
         return;
 
     m_cancelRequested = false;
@@ -160,7 +199,7 @@ void GXDLMSDevice::readObjectsAsync(const QList<CGXDLMSObject *> &objects, bool 
 
 void GXDLMSDevice::readObjectAsync(CGXDLMSObject *object, int attributeIndex)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     setState(m_state | DeviceState::Reading);
@@ -176,7 +215,7 @@ void GXDLMSDevice::applyConnectionSettings()
 
 void GXDLMSDevice::writeObjectAsync(CGXDLMSObject *object, int attributeIndex, const QString &value)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     setState(m_state | DeviceState::Writing);
@@ -188,7 +227,7 @@ void GXDLMSDevice::writeObjectAsync(CGXDLMSObject *object, int attributeIndex, c
 
 void GXDLMSDevice::invokeMethodAsync(CGXDLMSObject *object, int methodIndex, const QString &parameter)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     setState(m_state | DeviceState::Writing);
@@ -260,7 +299,7 @@ void GXDLMSDevice::handleMethodInvokeFinished(CGXDLMSObject *object, int methodI
 
 void GXDLMSDevice::readProfileGenericByEntryAsync(CGXDLMSObject *object, int index, int count)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     setState(m_state | DeviceState::Reading);
@@ -274,7 +313,7 @@ void GXDLMSDevice::readProfileGenericByEntryAsync(CGXDLMSObject *object, int ind
 void GXDLMSDevice::readProfileGenericByRangeAsync(CGXDLMSObject *object, const QDateTime &start,
                                                   const QDateTime &end)
 {
-    if (!(m_state & DeviceState::Connected) || !object)
+    if (!canStartMeterOperation(m_state) || !object)
         return;
 
     setState(m_state | DeviceState::Reading);

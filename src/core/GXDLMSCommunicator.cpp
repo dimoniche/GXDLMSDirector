@@ -44,6 +44,56 @@ void prepareApduBuffer(CGXByteBuffer &data)
         data.SetPosition(saved);
 }
 
+bool isCommunicationError(int errorCode)
+{
+    return errorCode == DLMS_ERROR_CODE_RECEIVE_FAILED
+           || (errorCode & DLMS_ERROR_TYPE_COMMUNICATION_ERROR) != 0;
+}
+
+class NotificationPauseGuard
+{
+public:
+    explicit NotificationPauseGuard(GXDLMSCommunicator *communicator)
+        : m_communicator(communicator)
+        , m_resume(communicator && communicator->notificationTimerActive())
+    {
+        if (m_resume)
+            communicator->setNotificationPolling(false);
+    }
+
+    ~NotificationPauseGuard()
+    {
+        if (m_resume && m_communicator && m_communicator->deviceNotificationsEnabled())
+            m_communicator->setNotificationPolling(true);
+    }
+
+private:
+    GXDLMSCommunicator *m_communicator;
+    bool m_resume = false;
+};
+
+class MeterOperationGuard
+{
+public:
+    explicit MeterOperationGuard(GXDLMSCommunicator *communicator)
+        : m_communicator(communicator)
+        , m_active(communicator && communicator->tryBeginMeterOperation())
+    {
+    }
+
+    ~MeterOperationGuard()
+    {
+        if (m_active)
+            m_communicator->endMeterOperation();
+    }
+
+    explicit operator bool() const { return m_active; }
+
+private:
+    GXDLMSCommunicator *m_communicator;
+    bool m_active = false;
+};
+
 } // namespace
 
 GXDLMSCommunicator::GXDLMSCommunicator(GXDLMSDevice *device, QObject *parent)
@@ -143,10 +193,10 @@ int GXDLMSCommunicator::sendData(CGXByteBuffer &data)
     return m_media->sendData(data.GetData(), static_cast<int>(data.GetSize()));
 }
 
-int GXDLMSCommunicator::readBytes(CGXByteBuffer &reply, unsigned char eop)
+int GXDLMSCommunicator::readBytes(CGXByteBuffer &reply, unsigned char /*eop*/)
 {
     QByteArray buffer;
-    const int ret = m_media->readUntilByte(buffer, eop);
+    const int ret = m_media->readHdlcFrame(buffer);
     if (ret != 0)
         return ret;
     reply.Set(buffer.constData(), static_cast<unsigned long>(buffer.size()));
@@ -173,8 +223,104 @@ bool GXDLMSCommunicator::usesHdlcFrameDelimiter() const
            || iface == DLMS_INTERFACE_TYPE_PLC_HDLC;
 }
 
-int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
+bool GXDLMSCommunicator::notificationTimerActive() const
 {
+    return m_notificationTimer && m_notificationTimer->isActive();
+}
+
+bool GXDLMSCommunicator::deviceNotificationsEnabled() const
+{
+    return m_device && m_device->notificationsEnabled();
+}
+
+int GXDLMSCommunicator::openMedia()
+{
+    if (!m_device || !m_media)
+        return DLMS_ERROR_CODE_INVALID_PARAMETER;
+
+    m_media->clearReadStash();
+    m_media->setWaitTimeMs(m_device->waitTimeMs());
+
+    if (m_device->mediaType() == MediaType::Serial) {
+        return m_media->openSerial(m_device->serialPort(), m_device->baudRate(),
+                                   m_device->dataBits(), m_device->parity(), m_device->stopBits());
+    }
+    return m_media->openNetwork(m_device->hostName(), m_device->port());
+}
+
+int GXDLMSCommunicator::restoreApplicationAssociation()
+{
+    std::vector<CGXByteBuffer> data;
+    CGXReplyData reply;
+    int ret = 0;
+
+    if ((ret = m_client->SNRMRequest(data)) != 0
+        || (ret = readDataBlock(data, reply, false)) != 0
+        || (ret = parseUaResponse(reply.GetData())) != 0) {
+        return ret;
+    }
+
+    reply.Clear();
+    data.clear();
+    if ((ret = m_client->AARQRequest(data)) != 0
+        || (ret = readDataBlock(data, reply, false)) != 0) {
+        return ret;
+    }
+    prepareApduBuffer(reply.GetData());
+    if ((ret = m_client->ParseAAREResponse(reply.GetData())) != 0)
+        return ret;
+
+    reply.Clear();
+    data.clear();
+    if (m_client->GetAuthentication() > DLMS_AUTHENTICATION_LOW || m_client->IsAuthenticationRequired()) {
+        if ((ret = m_client->GetApplicationAssociationRequest(data)) != 0
+            || (ret = readDataBlock(data, reply, false)) != 0) {
+            return ret;
+        }
+        prepareApduBuffer(reply.GetData());
+        if ((ret = m_client->ParseApplicationAssociationResponse(reply.GetData())) != 0)
+            return ret;
+    }
+
+    return DLMS_ERROR_CODE_OK;
+}
+
+int GXDLMSCommunicator::restoreConnection()
+{
+    if (!m_device || !m_media || !m_client)
+        return DLMS_ERROR_CODE_INVALID_PARAMETER;
+
+    m_rxBuffer.Clear();
+    m_media->close();
+
+    int ret = openMedia();
+    if (ret != 0) {
+        notifyConnectionLost();
+        return ret;
+    }
+
+    emit traceMessage(tr("Restoring DLMS session..."));
+    ret = restoreApplicationAssociation();
+    if (ret != 0) {
+        notifyConnectionLost();
+        return ret;
+    }
+
+    return DLMS_ERROR_CODE_OK;
+}
+
+void GXDLMSCommunicator::notifyConnectionLost()
+{
+    m_rxBuffer.Clear();
+    if (m_media)
+        m_media->close();
+    emit connectionLost();
+}
+
+int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply, bool /*allowReconnect*/)
+{
+    NotificationPauseGuard guard(this);
+
     if (data.GetSize() == 0 && !reply.IsStreaming())
         return DLMS_ERROR_CODE_OK;
 
@@ -200,10 +346,12 @@ int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
         }
 
         if (usesHdlcFrameDelimiter()) {
-            CGXByteBuffer bb;
-            if ((ret = readBytes(bb, 0x7E)) != 0)
+            CGXByteBuffer chunk;
+            if ((ret = readBytes(chunk, 0x7E)) != 0)
                 return ret;
-            ret = m_client->GetData(bb, reply, notify);
+            if ((ret = m_rxBuffer.Set(&chunk)) != 0)
+                return ret;
+            ret = m_client->GetData(m_rxBuffer, reply, notify);
             if (ret == 0)
                 prepareApduBuffer(reply.GetData());
         } else {
@@ -226,29 +374,50 @@ int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
     return ret;
 }
 
-int GXDLMSCommunicator::readDataBlock(CGXByteBuffer &data, CGXReplyData &reply)
+int GXDLMSCommunicator::readDataBlock(CGXByteBuffer &data, CGXReplyData &reply, bool allowReconnect)
 {
     if (data.GetSize() == 0)
         return DLMS_ERROR_CODE_OK;
 
-    int ret = readDLMSPacket(data, reply);
-    if (ret != 0)
-        return ret;
+    const auto runBlock = [&]() -> int {
+        m_rxBuffer.Clear();
+        if (m_media)
+            m_media->clearReadStash();
 
-    while (reply.IsMoreData()) {
-        CGXByteBuffer rr;
-        if (!reply.IsStreaming()) {
-            if ((ret = m_client->ReceiverReady(reply.GetMoreData(), rr)) != 0)
+        int ret = readDLMSPacket(data, reply, false);
+        if (ret != 0)
+            return ret;
+
+        while (reply.IsMoreData()) {
+            CGXByteBuffer rr;
+            if (!reply.IsStreaming()) {
+                if ((ret = m_client->ReceiverReady(reply.GetMoreData(), rr)) != 0)
+                    return ret;
+            }
+            if ((ret = readDLMSPacket(rr, reply, false)) != 0)
                 return ret;
         }
-        if ((ret = readDLMSPacket(rr, reply)) != 0)
-            return ret;
+
+        return DLMS_ERROR_CODE_OK;
+    };
+
+    if (allowReconnect && m_media && !m_media->isOpen()) {
+        if (restoreConnection() != 0)
+            return DLMS_ERROR_CODE_RECEIVE_FAILED;
     }
 
-    return DLMS_ERROR_CODE_OK;
+    int ret = runBlock();
+    if (ret != 0 && allowReconnect && isCommunicationError(ret)) {
+        reply.Clear();
+        if (restoreConnection() == 0)
+            ret = runBlock();
+    }
+
+    return ret;
 }
 
-int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReplyData &reply)
+int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReplyData &reply,
+                                      bool allowReconnect)
 {
     if (data.empty())
         return DLMS_ERROR_CODE_OK;
@@ -256,7 +425,7 @@ int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReply
     int ret = 0;
     for (auto &packet : data) {
         reply.Clear();
-        if ((ret = readDLMSPacket(packet, reply)) != 0)
+        if ((ret = readDLMSPacket(packet, reply, false)) != 0)
             return ret;
         while (reply.IsMoreData()) {
             CGXByteBuffer rr;
@@ -264,7 +433,7 @@ int GXDLMSCommunicator::readDataBlock(std::vector<CGXByteBuffer> &data, CGXReply
                 if ((ret = m_client->ReceiverReady(reply.GetMoreData(), rr)) != 0)
                     return ret;
             }
-            if ((ret = readDLMSPacket(rr, reply)) != 0)
+            if ((ret = readDLMSPacket(rr, reply, false)) != 0)
                 return ret;
         }
     }
@@ -448,15 +617,8 @@ int GXDLMSCommunicator::initializeConnection()
         return DLMS_ERROR_CODE_INVALID_PARAMETER;
 
     applyClientSettings();
-    m_media->setWaitTimeMs(m_device->waitTimeMs());
 
-    int ret = 0;
-    if (m_device->mediaType() == MediaType::Serial) {
-        ret = m_media->openSerial(m_device->serialPort(), m_device->baudRate(),
-                                  m_device->dataBits(), m_device->parity(), m_device->stopBits());
-    } else {
-        ret = m_media->openNetwork(m_device->hostName(), m_device->port());
-    }
+    int ret = openMedia();
     if (ret != 0) {
         close();
         return ret;
@@ -564,6 +726,7 @@ int GXDLMSCommunicator::read(CGXDLMSObject *object, int attributeIndex, QString 
             return ret;
         if ((ret = readDataBlock(data, reply)) != 0)
             return ret;
+        prepareApduBuffer(reply.GetData());
         if ((ret = m_client->UpdateValue(*object, attributeIndex, reply.GetValue())) != 0)
             return ret;
     }
@@ -899,6 +1062,10 @@ QList<ReadResult> GXDLMSCommunicator::readObjectAttributes(CGXDLMSObject *object
                 object->SetAccess(index, DLMS_ACCESS_MODE_NONE);
             if (isSuppressibleReadError(result.errorCode))
                 continue;
+            results.append(result);
+            if (isCommunicationError(result.errorCode))
+                break;
+            continue;
         }
         results.append(result);
     }
@@ -920,16 +1087,37 @@ QList<ReadResult> GXDLMSCommunicator::readObjects(const QList<CGXDLMSObject *> &
             emit progressChanged(tr("Reading..."), current, total);
         ++current;
 
-        for (const ReadResult &partial : readObjectAttributes(object, forceAll, cancelFlag))
+        for (const ReadResult &partial : readObjectAttributes(object, forceAll, cancelFlag)) {
             results.append(partial);
+            if (isCommunicationError(partial.errorCode))
+                return results;
+        }
     }
 
     return results;
 }
 
+bool GXDLMSCommunicator::tryBeginMeterOperation()
+{
+    bool expected = false;
+    return m_meterOperationActive.compare_exchange_strong(expected, true);
+}
+
+void GXDLMSCommunicator::endMeterOperation()
+{
+    m_meterOperationActive = false;
+}
+
 void GXDLMSCommunicator::connectToMeter()
 {
-    int ret = syncConnect();
+    MeterOperationGuard guard(this);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        emit connectFinished(DLMS_ERROR_CODE_RECEIVE_FAILED);
+        return;
+    }
+
+    const int ret = syncConnect();
     emit connectFinished(ret);
 }
 
@@ -947,6 +1135,13 @@ int GXDLMSCommunicator::syncConnect()
 
 void GXDLMSCommunicator::disconnectFromMeter()
 {
+    MeterOperationGuard guard(this);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        emit disconnectFinished();
+        return;
+    }
+
     syncDisconnect();
     emit disconnectFinished();
 }
@@ -958,12 +1153,26 @@ int GXDLMSCommunicator::syncDisconnect()
 
 void GXDLMSCommunicator::readAllFromMeter(bool forceRead)
 {
+    MeterOperationGuard guard(this);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        emit readAllCompleted({});
+        return;
+    }
+
     m_cancelFlag = m_device ? &m_device->cancelFlag() : nullptr;
     emit readAllCompleted(readAll(forceRead, m_cancelFlag));
 }
 
 void GXDLMSCommunicator::readSelectedFromMeter(quintptr objectPtr, bool forceAll)
 {
+    MeterOperationGuard guard(this);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        emit readSelectedCompleted({});
+        return;
+    }
+
     m_cancelFlag = m_device ? &m_device->cancelFlag() : nullptr;
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     emit readSelectedCompleted(readObjectAttributes(object, forceAll, m_cancelFlag));
@@ -971,6 +1180,13 @@ void GXDLMSCommunicator::readSelectedFromMeter(quintptr objectPtr, bool forceAll
 
 void GXDLMSCommunicator::readObjectsFromMeter(const QList<quintptr> &objectPtrs, bool forceAll)
 {
+    MeterOperationGuard guard(this);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        emit readSelectedCompleted({});
+        return;
+    }
+
     m_cancelFlag = m_device ? &m_device->cancelFlag() : nullptr;
     QList<CGXDLMSObject *> objects;
     objects.reserve(objectPtrs.size());
@@ -982,9 +1198,17 @@ void GXDLMSCommunicator::readObjectsFromMeter(const QList<quintptr> &objectPtrs,
 
 void GXDLMSCommunicator::readAttributeFromMeter(quintptr objectPtr, int attributeIndex)
 {
+    MeterOperationGuard guard(this);
     ReadResult result;
     result.object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     result.attributeIndex = attributeIndex;
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        result.errorCode = DLMS_ERROR_CODE_RECEIVE_FAILED;
+        emit readAttributeCompleted(result);
+        return;
+    }
+
     result.errorCode = read(result.object, attributeIndex, result.value);
     emit readAttributeCompleted(result);
 }
@@ -992,10 +1216,18 @@ void GXDLMSCommunicator::readAttributeFromMeter(quintptr objectPtr, int attribut
 void GXDLMSCommunicator::writeAttributeToMeter(quintptr objectPtr, int attributeIndex,
                                                const QString &value)
 {
+    MeterOperationGuard guard(this);
     ReadResult result;
     result.object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     result.attributeIndex = attributeIndex;
     result.value = value;
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        result.errorCode = DLMS_ERROR_CODE_RECEIVE_FAILED;
+        emit writeCompleted(result);
+        return;
+    }
+
     result.errorCode = write(result.object, attributeIndex, value);
     emit writeCompleted(result);
 }
@@ -1003,9 +1235,17 @@ void GXDLMSCommunicator::writeAttributeToMeter(quintptr objectPtr, int attribute
 void GXDLMSCommunicator::invokeMethodOnMeter(quintptr objectPtr, int methodIndex,
                                              const QString &parameter)
 {
+    MeterOperationGuard guard(this);
     ReadResult result;
     result.object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
     result.attributeIndex = methodIndex;
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        result.errorCode = DLMS_ERROR_CODE_RECEIVE_FAILED;
+        emit methodInvokeCompleted(result);
+        return;
+    }
+
     CGXDLMSVariant variant;
     QString error;
     if (!parameter.trimmed().isEmpty()) {
@@ -1022,8 +1262,17 @@ void GXDLMSCommunicator::invokeMethodOnMeter(quintptr objectPtr, int methodIndex
 
 void GXDLMSCommunicator::readProfileGenericByEntryFromMeter(quintptr objectPtr, int index, int count)
 {
+    MeterOperationGuard guard(this);
     ProfileGenericResult pgResult;
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        pgResult.errorCode = DLMS_ERROR_CODE_RECEIVE_FAILED;
+        pgResult.errorMessage = tr("Previous meter operation still running.");
+        emit profileGenericCompleted(objectPtr, pgResult);
+        return;
+    }
+
     pgResult.errorCode = readProfileGenericByEntry(object, index, count, pgResult);
     if (pgResult.errorCode != 0) {
         pgResult.errorMessage =
@@ -1035,8 +1284,17 @@ void GXDLMSCommunicator::readProfileGenericByEntryFromMeter(quintptr objectPtr, 
 void GXDLMSCommunicator::readProfileGenericByRangeFromMeter(quintptr objectPtr, const QDateTime &start,
                                                             const QDateTime &end)
 {
+    MeterOperationGuard guard(this);
     ProfileGenericResult pgResult;
     auto *object = reinterpret_cast<CGXDLMSObject *>(objectPtr);
+    if (!guard) {
+        emit operationSkipped(tr("Previous meter operation still running."));
+        pgResult.errorCode = DLMS_ERROR_CODE_RECEIVE_FAILED;
+        pgResult.errorMessage = tr("Previous meter operation still running.");
+        emit profileGenericCompleted(objectPtr, pgResult);
+        return;
+    }
+
     pgResult.errorCode = readProfileGenericByRange(object, start, end, pgResult);
     if (pgResult.errorCode != 0) {
         pgResult.errorMessage =

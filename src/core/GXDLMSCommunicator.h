@@ -57,6 +57,8 @@ public:
     QString negotiatedConformanceString() const;
 
     void applyClientSettings();
+    bool notificationTimerActive() const;
+    bool deviceNotificationsEnabled() const;
 
 public slots:
     void initIo();
@@ -78,12 +80,17 @@ public slots:
     int syncConnect();
     int syncDisconnect();
 
+    bool tryBeginMeterOperation();
+    void endMeterOperation();
+
 signals:
     void traceMessage(const QString &message);
     void traceData(const QString &direction, const QByteArray &data);
     void notificationReceived(const QByteArray &data);
     void progressChanged(const QString &description, int current, int maximum);
     void errorOccurred(const QString &message);
+    void operationSkipped(const QString &reason);
+    void connectionLost();
 
     void connectFinished(int ret);
     void disconnectFinished();
@@ -95,9 +102,8 @@ signals:
     void profileGenericCompleted(quintptr objectPtr, const ProfileGenericResult &result);
 
 private:
-    int readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply);
-    int readDataBlock(CGXByteBuffer &data, CGXReplyData &reply);
-    int readDataBlock(std::vector<CGXByteBuffer> &data, CGXReplyData &reply);
+    int readDataBlock(CGXByteBuffer &data, CGXReplyData &reply, bool allowReconnect = true);
+    int readDataBlock(std::vector<CGXByteBuffer> &data, CGXReplyData &reply, bool allowReconnect = true);
     int sendData(CGXByteBuffer &data);
     int readBytes(CGXByteBuffer &reply, unsigned char eop);
     int readNetworkBytes(CGXByteBuffer &reply);
@@ -105,6 +111,11 @@ private:
     bool usesAccessService() const;
     int parseUaResponse(CGXByteBuffer &data);
     int updateFrameCounter();
+    int openMedia();
+    int restoreApplicationAssociation();
+    int restoreConnection();
+    void notifyConnectionLost();
+    int readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply, bool allowReconnect);
 
     GXDLMSDevice *m_device;
     std::string m_passwordBuffer;
@@ -114,4 +125,5 @@ private:
     QByteArray m_notificationBuffer;
     CGXByteBuffer m_rxBuffer;
     std::atomic<bool> *m_cancelFlag = nullptr;
+    std::atomic<bool> m_meterOperationActive{false};
 };

@@ -62,11 +62,17 @@ int MediaConnection::openNetwork(const QString &host, quint16 port)
         m_socket.reset();
         return DLMS_COMM_ERROR | err;
     }
+
+    while (m_socket->bytesAvailable() > 0)
+        m_socket->readAll();
+
     return 0;
 }
 
 void MediaConnection::close()
 {
+    m_hdlcStash.clear();
+
     if (m_serial && m_serial->isOpen())
         m_serial->close();
     m_serial.reset();
@@ -75,6 +81,72 @@ void MediaConnection::close()
         if (m_socket->state() == QAbstractSocket::ConnectedState)
             m_socket->disconnectFromHost();
         m_socket.reset();
+    }
+}
+
+void MediaConnection::clearReadStash()
+{
+    QMutexLocker lock(&m_mutex);
+    m_hdlcStash.clear();
+}
+
+void MediaConnection::drainInput()
+{
+    QMutexLocker lock(&m_mutex);
+    QIODevice *io = m_serial ? static_cast<QIODevice *>(m_serial.get())
+                             : m_socket ? static_cast<QIODevice *>(m_socket.get()) : nullptr;
+    if (!io)
+        return;
+
+    while (io->bytesAvailable() > 0)
+        io->readAll();
+}
+
+namespace {
+
+int closingHdlcFlagIndex(const QByteArray &buffer, int startPos)
+{
+    for (int pos = buffer.size() - 1; pos > startPos; --pos) {
+        if (static_cast<unsigned char>(buffer.at(pos)) == 0x7E)
+            return pos;
+    }
+    return -1;
+}
+
+} // namespace
+
+int MediaConnection::readHdlcFrame(QByteArray &frame)
+{
+    QMutexLocker lock(&m_mutex);
+    frame.clear();
+    if (!m_serial && !m_socket)
+        return DLMS_COMM_ERROR;
+
+    while (true) {
+        const int start = m_hdlcStash.indexOf(static_cast<char>(0x7E));
+        if (start >= 0) {
+            const int end = closingHdlcFlagIndex(m_hdlcStash, start);
+            if (end > start) {
+                frame = m_hdlcStash.mid(start, end - start + 1);
+                m_hdlcStash.remove(0, end + 1);
+                emit traceData(QStringLiteral("RX"), frame);
+                return 0;
+            }
+        }
+
+        QIODevice *io = m_serial ? static_cast<QIODevice *>(m_serial.get())
+                                 : static_cast<QIODevice *>(m_socket.get());
+        if (io->bytesAvailable() == 0 && !io->waitForReadyRead(m_waitTimeMs)) {
+            const int err = m_serial ? static_cast<int>(m_serial->error())
+                                   : static_cast<int>(m_socket->error());
+            return DLMS_COMM_ERROR | err;
+        }
+
+        const QByteArray chunk = io->readAll();
+        if (chunk.isEmpty())
+            return DLMS_COMM_ERROR;
+
+        m_hdlcStash.append(chunk);
     }
 }
 

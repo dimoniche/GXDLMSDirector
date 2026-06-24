@@ -33,6 +33,9 @@ public:
     int sendData(const unsigned char *data, int size);
     int readData(QByteArray &buffer, unsigned char eop);
     int readUntilByte(QByteArray &buffer, unsigned char eop);
+    int readHdlcFrame(QByteArray &frame);
+    void clearReadStash();
+    void drainInput();
     int readNetworkChunk(QByteArray &buffer);
     int readAvailable(QByteArray &buffer, int timeoutMs);
 
@@ -43,6 +46,7 @@ private:
     MediaType m_type = MediaType::Serial;
     int m_waitTimeMs = 5000;
     mutable QMutex m_mutex;
+    QByteArray m_hdlcStash;
     std::unique_ptr<QSerialPort> m_serial;
     std::unique_ptr<QTcpSocket> m_socket;
 };
