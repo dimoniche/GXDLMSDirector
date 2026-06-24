@@ -63,8 +63,14 @@ public:
     unsigned char clientAddress() const { return m_clientAddress; }
     void setClientAddress(unsigned char address) { m_clientAddress = address; }
 
-    unsigned long serverAddress() const { return m_serverAddress; }
-    void setServerAddress(unsigned long address) { m_serverAddress = address; }
+    unsigned short serverLogicalAddress() const { return m_serverLogicalAddress; }
+    void setServerLogicalAddress(unsigned short address) { m_serverLogicalAddress = address; }
+
+    unsigned short serverPhysicalAddress() const { return m_serverPhysicalAddress; }
+    void setServerPhysicalAddress(unsigned short address) { m_serverPhysicalAddress = address; }
+
+    unsigned long serverAddress() const;
+    void setServerAddress(unsigned long address);
 
     int authentication() const { return m_authentication; }
     void setAuthentication(int auth) { m_authentication = auth; }
@@ -165,7 +171,8 @@ private:
 
     bool m_useLogicalName = true;
     unsigned char m_clientAddress = 16;
-    unsigned long m_serverAddress = 1;
+    unsigned short m_serverLogicalAddress = 0;
+    unsigned short m_serverPhysicalAddress = 1;
     int m_authentication = 0;
     QString m_password;
     int m_interfaceType = 0;

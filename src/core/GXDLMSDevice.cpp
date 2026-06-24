@@ -1,6 +1,7 @@
 #include "GXDLMSDevice.h"
 #include "GXDLMSCommunicator.h"
 #include "ConformanceHelper.h"
+#include "HdlcAddressHelper.h"
 #include "VariantConverter.h"
 
 #include <GXDLMSConverter.h>
@@ -21,6 +22,16 @@ QString formatDlmsError(int errorCode)
 }
 
 } // namespace
+
+unsigned long GXDLMSDevice::serverAddress() const
+{
+    return HdlcAddressHelper::encodeServerAddress(m_serverLogicalAddress, m_serverPhysicalAddress);
+}
+
+void GXDLMSDevice::setServerAddress(unsigned long address)
+{
+    HdlcAddressHelper::decodeServerAddress(address, m_serverLogicalAddress, m_serverPhysicalAddress);
+}
 
 GXDLMSDevice::GXDLMSDevice(QObject *parent)
     : QObject(parent)

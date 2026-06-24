@@ -97,7 +97,8 @@ void DevicePropertiesDialog::loadFromDevice()
     ui->macSourceSpin->setValue(m_device->macSourceAddress());
     ui->macDestinationSpin->setValue(m_device->macDestinationAddress());
     ui->clientAddressSpin->setValue(m_device->clientAddress());
-    ui->serverAddressSpin->setValue(static_cast<int>(m_device->serverAddress()));
+    ui->serverLogicalAddressSpin->setValue(m_device->serverLogicalAddress());
+    ui->serverPhysicalAddressSpin->setValue(m_device->serverPhysicalAddress());
     ui->authCombo->setCurrentIndex(m_device->authentication());
     ui->passwordEdit->setText(m_device->password());
     const int securityIndex = ui->securityCombo->findData(m_device->security());
@@ -206,7 +207,8 @@ void DevicePropertiesDialog::applySettings()
     m_device->setMacSourceAddress(static_cast<quint16>(ui->macSourceSpin->value()));
     m_device->setMacDestinationAddress(static_cast<quint16>(ui->macDestinationSpin->value()));
     m_device->setClientAddress(static_cast<unsigned char>(ui->clientAddressSpin->value()));
-    m_device->setServerAddress(static_cast<unsigned long>(ui->serverAddressSpin->value()));
+    m_device->setServerLogicalAddress(static_cast<unsigned short>(ui->serverLogicalAddressSpin->value()));
+    m_device->setServerPhysicalAddress(static_cast<unsigned short>(ui->serverPhysicalAddressSpin->value()));
     m_device->setAuthentication(ui->authCombo->currentIndex());
     m_device->setPassword(ui->passwordEdit->text());
     m_device->setSecurity(ui->securityCombo->currentData().toInt());
@@ -228,7 +230,8 @@ void DevicePropertiesDialog::onManufacturerChanged(int index)
     ui->macSourceSpin->setValue(m_device->macSourceAddress());
     ui->macDestinationSpin->setValue(m_device->macDestinationAddress());
     ui->clientAddressSpin->setValue(m_device->clientAddress());
-    ui->serverAddressSpin->setValue(static_cast<int>(m_device->serverAddress()));
+    ui->serverLogicalAddressSpin->setValue(m_device->serverLogicalAddress());
+    ui->serverPhysicalAddressSpin->setValue(m_device->serverPhysicalAddress());
     ui->authCombo->setCurrentIndex(m_device->authentication());
     const int securityIndex = ui->securityCombo->findData(m_device->security());
     if (securityIndex >= 0)

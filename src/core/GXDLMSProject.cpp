@@ -144,7 +144,8 @@ bool copySettings(const GXDLMSDevice &from, GXDLMSDevice &to)
     to.setWaitTimeMs(from.waitTimeMs());
     to.setUseLogicalNameReferencing(from.useLogicalNameReferencing());
     to.setClientAddress(from.clientAddress());
-    to.setServerAddress(from.serverAddress());
+    to.setServerLogicalAddress(from.serverLogicalAddress());
+    to.setServerPhysicalAddress(from.serverPhysicalAddress());
     to.setAuthentication(from.authentication());
     to.setPassword(from.password());
     to.setInterfaceType(from.interfaceType());

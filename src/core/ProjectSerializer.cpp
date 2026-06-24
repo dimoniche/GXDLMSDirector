@@ -58,7 +58,8 @@ void writeDeviceElement(QDomDocument &doc, QDomElement &deviceElement, GXDLMSDev
     dlms.setAttribute(QStringLiteral("useLogicalName"),
                       boolAttribute(device->useLogicalNameReferencing()));
     dlms.setAttribute(QStringLiteral("clientAddress"), device->clientAddress());
-    dlms.setAttribute(QStringLiteral("serverAddress"), static_cast<qulonglong>(device->serverAddress()));
+    dlms.setAttribute(QStringLiteral("serverLogicalAddress"), device->serverLogicalAddress());
+    dlms.setAttribute(QStringLiteral("serverPhysicalAddress"), device->serverPhysicalAddress());
     dlms.setAttribute(QStringLiteral("authentication"), device->authentication());
     dlms.setAttribute(QStringLiteral("password"), device->password());
     dlms.setAttribute(QStringLiteral("interfaceType"), device->interfaceType());
@@ -102,7 +103,15 @@ bool readDeviceElement(const QDomElement &deviceElement, GXDLMSDevice *device, Q
         device->setUseLogicalNameReferencing(
             parseBoolAttribute(dlms, QStringLiteral("useLogicalName"), true));
         device->setClientAddress(static_cast<unsigned char>(dlms.attribute(QStringLiteral("clientAddress"), QStringLiteral("16")).toUInt()));
-        device->setServerAddress(dlms.attribute(QStringLiteral("serverAddress"), QStringLiteral("1")).toULong());
+        if (dlms.hasAttribute(QStringLiteral("serverLogicalAddress"))
+            || dlms.hasAttribute(QStringLiteral("serverPhysicalAddress"))) {
+            device->setServerLogicalAddress(static_cast<unsigned short>(
+                dlms.attribute(QStringLiteral("serverLogicalAddress"), QStringLiteral("0")).toUInt()));
+            device->setServerPhysicalAddress(static_cast<unsigned short>(
+                dlms.attribute(QStringLiteral("serverPhysicalAddress"), QStringLiteral("1")).toUInt()));
+        } else {
+            device->setServerAddress(dlms.attribute(QStringLiteral("serverAddress"), QStringLiteral("1")).toULong());
+        }
         device->setAuthentication(dlms.attribute(QStringLiteral("authentication"), QStringLiteral("0")).toInt());
         device->setPassword(dlms.attribute(QStringLiteral("password")));
         device->setInterfaceType(dlms.attribute(QStringLiteral("interfaceType"), QStringLiteral("0")).toInt());

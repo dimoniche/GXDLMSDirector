@@ -1,4 +1,5 @@
 #include "HdlcAddressScanner.h"
+#include "HdlcAddressHelper.h"
 
 #include <GXDLMSClient.h>
 #include <GXDLMSConverter.h>
@@ -12,17 +13,6 @@
 #include <QObject>
 
 namespace {
-
-void decodeServerAddress(int serverAddress, int &logical, int &physical)
-{
-    if (serverAddress < 0x4000) {
-        logical = serverAddress >> 7;
-        physical = serverAddress & 0x7F;
-    } else {
-        logical = serverAddress >> 14;
-        physical = serverAddress & 0x3FFF;
-    }
-}
 
 int readPacket(CGXDLMSSecureClient &client, MediaConnection &media, CGXByteBuffer &data,
                CGXReplyData &reply, int waitTimeMs)
@@ -138,8 +128,12 @@ QList<HdlcScanResult> HdlcAddressScanner::scan(const HdlcScanSettings &settings,
             HdlcScanResult scanResult;
             scanResult.clientAddress = client;
             scanResult.serverAddress = reply.GetServerAddress() != 0 ? reply.GetServerAddress() : server;
-            decodeServerAddress(scanResult.serverAddress, scanResult.logicalAddress,
-                                scanResult.physicalAddress);
+            unsigned short logical = 0;
+            unsigned short physical = 0;
+            HdlcAddressHelper::decodeServerAddress(static_cast<unsigned long>(scanResult.serverAddress),
+                                                   logical, physical);
+            scanResult.logicalAddress = logical;
+            scanResult.physicalAddress = physical;
 
             QString details = QObject::tr("SNRM succeeded");
             scanResult.aarqSucceeded = false;

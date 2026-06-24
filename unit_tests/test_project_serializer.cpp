@@ -25,6 +25,8 @@ private slots:
     void roundTripObjectsSidecar();
     void rejectsUnsupportedFormat();
     void objectsFilePathForMultiDevice();
+    void migratesLegacyServerAddress();
+    void roundTripSpodesServerAddress();
 };
 
 void TestProjectSerializer::roundTripMultiDevice()
@@ -93,7 +95,7 @@ void TestProjectSerializer::roundTripBoolAttributeVariants()
 <GXDLMSDirectorProject version="2">
  <Device name="Bool test">
   <Media type="serial" serialPort="/dev/ttyUSB0" baudRate="9600" dataBits="8" parity="0" stopBits="1" host="localhost" port="4059" waitTimeMs="5000"/>
-  <Dlms useLogicalName="%1" clientAddress="16" serverAddress="1" authentication="0" password="" interfaceType="0" standard="0" security="0" authenticationKey="" blockCipherKey="" macSourceAddress="0" macDestinationAddress="0"/>
+  <Dlms useLogicalName="%1" clientAddress="16" serverLogicalAddress="0" serverPhysicalAddress="1" authentication="0" password="" interfaceType="0" standard="0" security="0" authenticationKey="" blockCipherKey="" macSourceAddress="0" macDestinationAddress="0"/>
  </Device>
 </GXDLMSDirectorProject>)")
                        .arg(attributeValue)
@@ -181,7 +183,8 @@ void TestProjectSerializer::roundTripBoolReferencing()
     device->setUseLogicalNameReferencing(false);
     device->setManufacturer(QStringLiteral("GRX"));
     device->setClientAddress(32);
-    device->setServerAddress(17);
+    device->setServerLogicalAddress(0);
+    device->setServerPhysicalAddress(17);
 
     QString error;
     QVERIFY2(ProjectSerializer::save(projectPath, &project, &error), qPrintable(error));
@@ -191,6 +194,8 @@ void TestProjectSerializer::roundTripBoolReferencing()
     QCOMPARE(loaded.deviceCount(), 1);
     QCOMPARE(loaded.deviceAt(0)->useLogicalNameReferencing(), false);
     QCOMPARE(loaded.deviceAt(0)->clientAddress(), static_cast<unsigned char>(32));
+    QCOMPARE(loaded.deviceAt(0)->serverLogicalAddress(), static_cast<unsigned short>(0));
+    QCOMPARE(loaded.deviceAt(0)->serverPhysicalAddress(), static_cast<unsigned short>(17));
     QCOMPARE(loaded.deviceAt(0)->serverAddress(), static_cast<unsigned long>(17));
 }
 
@@ -218,6 +223,56 @@ void TestProjectSerializer::roundTripSecurityKeys()
              QStringLiteral("00112233445566778899AABBCCDDEEFF"));
     QCOMPARE(loaded.deviceAt(0)->blockCipherKey(),
              QStringLiteral("FFEEDDCCBBAA99887766554433221100"));
+}
+
+void TestProjectSerializer::migratesLegacyServerAddress()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    const QString projectPath = tempDir.path() + QStringLiteral("/legacy_server.gxc");
+    QFile file(projectPath);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(QStringLiteral(
+        R"(<?xml version="1.0" encoding="UTF-8"?>
+<GXDLMSDirectorProject version="2">
+ <Device name="Legacy server">
+  <Media type="serial" serialPort="/dev/ttyUSB0" baudRate="9600" dataBits="8" parity="0" stopBits="1" host="localhost" port="4059" waitTimeMs="5000"/>
+  <Dlms useLogicalName="true" clientAddress="48" serverAddress="16512" authentication="0" password="" interfaceType="0" standard="0" security="0" authenticationKey="" blockCipherKey="" macSourceAddress="0" macDestinationAddress="0"/>
+ </Device>
+</GXDLMSDirectorProject>)")
+                   .toUtf8());
+    file.close();
+
+    GXDLMSProject loaded;
+    QString error;
+    QVERIFY2(ProjectSerializer::load(projectPath, &loaded, &error), qPrintable(error));
+    QCOMPARE(loaded.deviceAt(0)->serverLogicalAddress(), static_cast<unsigned short>(1));
+    QCOMPARE(loaded.deviceAt(0)->serverPhysicalAddress(), static_cast<unsigned short>(128));
+    QCOMPARE(loaded.deviceAt(0)->serverAddress(), static_cast<unsigned long>(16512));
+}
+
+void TestProjectSerializer::roundTripSpodesServerAddress()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    const QString projectPath = tempDir.path() + QStringLiteral("/spodes.gxc");
+
+    GXDLMSProject project;
+    project.clearDevices();
+    GXDLMSDevice *device = project.addDevice(QStringLiteral("USPD"));
+    device->setServerLogicalAddress(1);
+    device->setServerPhysicalAddress(128);
+
+    QString error;
+    QVERIFY2(ProjectSerializer::save(projectPath, &project, &error), qPrintable(error));
+
+    GXDLMSProject loaded;
+    QVERIFY2(ProjectSerializer::load(projectPath, &loaded, &error), qPrintable(error));
+    QCOMPARE(loaded.deviceAt(0)->serverLogicalAddress(), static_cast<unsigned short>(1));
+    QCOMPARE(loaded.deviceAt(0)->serverPhysicalAddress(), static_cast<unsigned short>(128));
+    QCOMPARE(loaded.deviceAt(0)->serverAddress(), static_cast<unsigned long>(16512));
 }
 
 QTEST_MAIN(TestProjectSerializer)

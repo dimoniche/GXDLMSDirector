@@ -71,6 +71,7 @@ set(HEADERS
     src/core/ProjectSerializer.h
     src/core/ProfileGenericResult.h
     src/core/HdlcAddressScanner.h
+    src/core/HdlcAddressHelper.h
     src/core/PlcDiscoverer.h
     src/core/MacroStep.h
     src/core/MacroSerializer.h
