@@ -59,8 +59,6 @@ public:
     void applyClientSettings();
     bool notificationTimerActive() const;
     bool deviceNotificationsEnabled() const;
-    bool notificationTimerActive() const;
-    bool deviceNotificationsEnabled() const;
 
 public slots:
     void initIo();
@@ -84,6 +82,7 @@ public slots:
 
     bool tryBeginMeterOperation();
     void endMeterOperation();
+    bool isLinkDead() const { return m_linkDead.load(); }
 
 signals:
     void traceMessage(const QString &message);

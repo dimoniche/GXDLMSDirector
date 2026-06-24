@@ -2,7 +2,7 @@
 
 #include <GXDLMSData.h>
 #include <GXDLMSVariant.h>
-#include <GXByteBuffer.h>
+#include <GXBytebuffer.h>
 #include <enums.h>
 
 #include <QTest>
