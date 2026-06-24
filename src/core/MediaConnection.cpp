@@ -1,9 +1,11 @@
 #include "MediaConnection.h"
 
+#include <errorcodes.h>
+
 #include <QIODevice>
 
 namespace {
-constexpr int DLMS_COMM_ERROR = 0x10000;
+constexpr int DLMS_COMM_ERROR = DLMS_ERROR_TYPE_COMMUNICATION_ERROR;
 }
 
 MediaConnection::MediaConnection(QObject *parent)

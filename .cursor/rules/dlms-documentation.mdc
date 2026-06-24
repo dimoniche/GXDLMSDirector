@@ -1,0 +1,27 @@
+---
+description: Verify DLMS/COSEM changes and diagnoses against project documentation
+alwaysApply: true
+---
+
+# DLMS documentation first
+
+Before explaining traces, proposing protocol changes, or editing DLMS-related code, **verify against project documentation** in `_upstream/` (Blue Book, SPODES, IEC 62056-46/47/53, manufacturer specs). Do not rely on Gurux behavior or heuristics alone.
+
+## Workflow
+
+1. **Read docs** relevant to the task (association, security, HDLC, Access-Request, conformance).
+2. **Decode traces by layer**: HDLC (`7E…7E`) → LLC (`E6 E6 00` client / `E6 E7 00` server) → xDLMS APDU (`61` AARE, `C0` Get, `D9` Access, …) → COSEM data.
+3. **Implement or advise** only after the doc-backed interpretation is clear.
+4. If `_upstream/` is missing or silent on a point, **say so explicitly**; cite what you could verify and what remains assumed.
+
+## Project-specific anchors
+
+- **LLC is not part of the APDU** — parsers (`ParseAAREResponse`, `ParseObjects`, …) must see the BER tag (e.g. `0x61`), not `E6`.
+- **Security / Access**: distinguish negotiated conformance (`ACCESS`, `GENERAL_PROTECTION`) from ciphered transports (GLO-Get vs Access-Request); check SPODES and Blue Book, not only Gurux enums.
+- **TCP + HDLC**: native `7E` framing unless the user requests Wrapper; do not auto-switch interface type.
+- **Primary code**: `src/core/GXDLMSCommunicator.cpp`, `MediaConnection.*`, Gurux only when the standard leaves implementation open.
+
+## When changing protocol logic
+
+- Cross-check AARQ/AARE fields, auth mechanism OID, security suite, and PDU choice with the standard.
+- Prefer the smallest diff that matches the spec; match existing project conventions in surrounding code.

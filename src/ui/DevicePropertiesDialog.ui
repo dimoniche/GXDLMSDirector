@@ -252,7 +252,10 @@
        <item row="5" column="1">
         <widget class="QSpinBox" name="serverAddressSpin">
          <property name="maximum">
-          <number>16383</number>
+          <number>268435455</number>
+         </property>
+         <property name="toolTip">
+          <string>Combined HDLC server address (e.g. 16512 = logical 1, physical 128).</string>
          </property>
          <property name="value">
           <number>1</number>

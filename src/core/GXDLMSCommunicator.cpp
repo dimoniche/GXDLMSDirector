@@ -6,6 +6,7 @@
 #include "ConformanceHelper.h"
 
 #include <GXDLMSAccessItem.h>
+#include <GXDLMSAssociationLogicalName.h>
 #include <GXDLMSConverter.h>
 #include <GXDLMSData.h>
 #include <GXDLMSProfileGeneric.h>
@@ -20,6 +21,30 @@
 #include <QDateTime>
 #include <QTime>
 #include <QTimer>
+
+namespace {
+
+void prepareApduBuffer(CGXByteBuffer &data)
+{
+    if (data.GetSize() < 3)
+        return;
+
+    const unsigned long saved = data.GetPosition();
+    data.SetPosition(0);
+    unsigned char header[3];
+    if (data.GetUInt8(&header[0]) != 0 || data.GetUInt8(&header[1]) != 0
+        || data.GetUInt8(&header[2]) != 0) {
+        data.SetPosition(saved);
+        return;
+    }
+
+    const bool replyLlc = header[0] == 0xE6 && header[1] == 0xE7 && header[2] == 0x00;
+    const bool sendLlc = header[0] == 0xE6 && header[1] == 0xE6 && header[2] == 0x00;
+    if (!replyLlc && !sendLlc)
+        data.SetPosition(saved);
+}
+
+} // namespace
 
 GXDLMSCommunicator::GXDLMSCommunicator(GXDLMSDevice *device, QObject *parent)
     : QObject(parent)
@@ -54,7 +79,11 @@ bool GXDLMSCommunicator::usesAccessService() const
         return false;
     if (m_client->GetCiphering()->GetSecurity() == DLMS_SECURITY_NONE)
         return false;
-    return (m_client->GetNegotiatedConformance() & DLMS_CONFORMANCE_ACCESS) != 0;
+    const DLMS_CONFORMANCE negotiated = m_client->GetNegotiatedConformance();
+    // Access-Request with ciphering requires General Protection; without it Gurux
+    // cannot map ACCESS_REQUEST to a GLO command and message building fails.
+    return (negotiated & DLMS_CONFORMANCE_ACCESS) != 0
+           && (negotiated & DLMS_CONFORMANCE_GENERAL_PROTECTION) != 0;
 }
 
 void GXDLMSCommunicator::applyClientSettings()
@@ -175,6 +204,8 @@ int GXDLMSCommunicator::readDLMSPacket(CGXByteBuffer &data, CGXReplyData &reply)
             if ((ret = readBytes(bb, 0x7E)) != 0)
                 return ret;
             ret = m_client->GetData(bb, reply, notify);
+            if (ret == 0)
+                prepareApduBuffer(reply.GetData());
         } else {
             CGXByteBuffer chunk;
             if ((ret = readNetworkBytes(chunk)) != 0)
@@ -376,8 +407,15 @@ int GXDLMSCommunicator::updateFrameCounter()
 
     reply.Clear();
     if ((ret = m_client->AARQRequest(data)) != 0
-        || (ret = readDataBlock(data, reply)) != 0
-        || (ret = m_client->ParseAAREResponse(reply.GetData())) != 0) {
+        || (ret = readDataBlock(data, reply)) != 0) {
+        m_client->SetClientAddress(savedClient);
+        m_client->SetAuthentication(savedAuth);
+        m_client->GetCiphering()->SetSecurity(savedSecurity);
+        m_client->SetCtoSChallenge(challenge);
+        return ret;
+    }
+    prepareApduBuffer(reply.GetData());
+    if ((ret = m_client->ParseAAREResponse(reply.GetData())) != 0) {
         m_client->SetClientAddress(savedClient);
         m_client->SetAuthentication(savedAuth);
         m_client->GetCiphering()->SetSecurity(savedSecurity);
@@ -443,8 +481,12 @@ int GXDLMSCommunicator::initializeConnection()
     reply.Clear();
     emit progressChanged(tr("Sending AARQ request..."), 2, 4);
     if ((ret = m_client->AARQRequest(data)) != 0
-        || (ret = readDataBlock(data, reply)) != 0
-        || (ret = m_client->ParseAAREResponse(reply.GetData())) != 0) {
+        || (ret = readDataBlock(data, reply)) != 0) {
+        close();
+        return ret;
+    }
+    prepareApduBuffer(reply.GetData());
+    if ((ret = m_client->ParseAAREResponse(reply.GetData())) != 0) {
         close();
         return ret;
     }
@@ -453,8 +495,12 @@ int GXDLMSCommunicator::initializeConnection()
     if (m_client->GetAuthentication() > DLMS_AUTHENTICATION_LOW || m_client->IsAuthenticationRequired()) {
         emit progressChanged(tr("Authenticating..."), 3, 4);
         if ((ret = m_client->GetApplicationAssociationRequest(data)) != 0
-            || (ret = readDataBlock(data, reply)) != 0
-            || (ret = m_client->ParseApplicationAssociationResponse(reply.GetData())) != 0) {
+            || (ret = readDataBlock(data, reply)) != 0) {
+            close();
+            return ret;
+        }
+        prepareApduBuffer(reply.GetData());
+        if ((ret = m_client->ParseApplicationAssociationResponse(reply.GetData())) != 0) {
             close();
             return ret;
         }
@@ -508,6 +554,7 @@ int GXDLMSCommunicator::read(CGXDLMSObject *object, int attributeIndex, QString 
             return ret;
         if ((ret = readDataBlock(data, reply)) != 0)
             return ret;
+        prepareApduBuffer(reply.GetData());
         if ((ret = m_client->ParseAccessResponse(list, reply.GetData())) != 0)
             return ret;
         if (list.front().GetError() != DLMS_ERROR_CODE_OK)
@@ -596,20 +643,42 @@ int GXDLMSCommunicator::getAssociationView()
 
     std::vector<CGXByteBuffer> data;
     CGXReplyData reply;
-    int ret = m_client->GetObjectsRequest(data);
-    if (ret != 0)
-        return ret;
-    if ((ret = readDataBlock(data, reply)) != 0)
-        return ret;
+    int ret = 0;
+    CGXDLMSVariant associationValue;
+
+    if (usesAccessService()) {
+        CGXDLMSAssociationLogicalName association(QStringLiteral("0.0.40.0.0.255").toStdString());
+        std::vector<CGXDLMSAccessItem> list;
+        list.emplace_back(DLMS_ACCESS_SERVICE_COMMAND_TYPE_GET, &association,
+                          static_cast<unsigned char>(2));
+        if ((ret = m_client->AccessRequest(nullptr, list, data)) != 0)
+            return ret;
+        if ((ret = readDataBlock(data, reply)) != 0)
+            return ret;
+        prepareApduBuffer(reply.GetData());
+        if ((ret = m_client->ParseAccessResponse(list, reply.GetData())) != 0)
+            return ret;
+        if (list.front().GetError() != DLMS_ERROR_CODE_OK)
+            return list.front().GetError();
+        associationValue = list.front().GetValue();
+    } else {
+        if ((ret = m_client->GetObjectsRequest(data)) != 0)
+            return ret;
+        if ((ret = readDataBlock(data, reply)) != 0)
+            return ret;
+        associationValue = reply.GetValue();
+    }
 
     emit progressChanged(tr("Parsing COSEM objects..."), 2, 2);
-    if (reply.GetValue().vt == DLMS_DATA_TYPE_ARRAY && !reply.GetValue().Arr.empty()) {
-        std::vector<CGXDLMSVariant> objects = reply.GetValue().Arr;
+    if (associationValue.vt == DLMS_DATA_TYPE_ARRAY && !associationValue.Arr.empty()) {
+        std::vector<CGXDLMSVariant> objects = associationValue.Arr;
         AssociationViewParser::normalizeObjects(objects);
         ret = m_client->ParseObjects(objects, true);
-    } else {
-        reply.GetData().SetPosition(0);
+    } else if (!usesAccessService()) {
+        prepareApduBuffer(reply.GetData());
         ret = m_client->ParseObjects(reply.GetData(), true);
+    } else {
+        ret = DLMS_ERROR_CODE_INVALID_RESPONSE;
     }
     if (ret != 0)
         return ret;
